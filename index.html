@@ -230,43 +230,43 @@ tr:hover .ra{opacity:1}
 const S={get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}},del:(k)=>localStorage.removeItem(k)};
 let user=null,accounts=[],fStatus='all',sc='username',sd='asc',authMode='login';
 
-const HASDATA_KEY='d417e489-f56b-45ff-8b7e-aaa623a47477';
+const WORKER_URL='https://empty-waterfall-dd1e.pepper-steak963.workers.dev';
 
 async function fetchIGStats(username){
-  // HasData Instagram Profile API - 1 call gets everything
-  const res=await fetch('https://api.hasdata.com/scrape/instagram/profile?handle='+encodeURIComponent(username),{
-    method:'GET',
-    headers:{'Content-Type':'application/json','x-api-key':HASDATA_KEY}
-  });
+  const res=await fetch(WORKER_URL+'?username='+encodeURIComponent(username));
   const data=await res.json();
-  console.log('HasData response:',JSON.stringify(data).slice(0,400));
-  if(!res.ok) throw new Error('API error '+res.status+': '+(data?.message||''));
-  
-  const p=data?.profile||data?.data||data;
+  console.log('Response:',JSON.stringify(data).slice(0,400));
+  if(!res.ok) throw new Error('API error '+res.status);
+
+  // HasData response shape
+  const p=data?.data||data;
   if(!p||!p.username) throw new Error('User not found');
+
+  // Get posts array for avg stats
+  const posts_arr=p.latestIgtVideos||p.posts||p.recentPosts||[];
+  const timeline=data?.json?.edge_owner_to_timeline_media?.edges||[];
+  const all_posts=[...timeline];
   
-  // Extract post stats from recent posts
-  const posts_arr=p.posts||p.recentPosts||p.edge_owner_to_timeline_media?.edges||[];
   let avg_likes=0,avg_comments=0,avg_views=0,lastPost=null;
-  if(Array.isArray(posts_arr)&&posts_arr.length>0){
-    const items=posts_arr.map(e=>e.node||e);
-    avg_likes=Math.round(items.reduce((s,i)=>s+(i.like_count||i.likeCount||i.edge_liked_by?.count||0),0)/items.length);
-    avg_comments=Math.round(items.reduce((s,i)=>s+(i.comment_count||i.commentCount||i.edge_media_to_comment?.count||0),0)/items.length);
-    avg_views=Math.round(items.reduce((s,i)=>s+(i.view_count||i.viewCount||i.video_view_count||i.play_count||0),0)/items.length);
-    const ts=items[0]?.taken_at||items[0]?.takenAt||items[0]?.timestamp;
+  if(all_posts.length>0){
+    const items=all_posts.map(e=>e.node||e);
+    avg_likes=Math.round(items.reduce((s,i)=>s+(i.edge_liked_by?.count||i.likesCount||i.like_count||0),0)/items.length);
+    avg_comments=Math.round(items.reduce((s,i)=>s+(i.edge_media_to_comment?.count||i.commentsCount||i.comment_count||0),0)/items.length);
+    avg_views=Math.round(items.reduce((s,i)=>s+(i.video_view_count||i.viewCount||i.play_count||0),0)/items.length);
+    const ts=items[0]?.taken_at_timestamp||items[0]?.timestamp;
     if(ts) lastPost=new Date(typeof ts==='number'?ts*1000:ts).toISOString();
   }
-  
+
   return{
     username:p.username||username,
     full_name:p.fullName||p.full_name||username,
-    followers:p.followersCount||p.followers||p.follower_count||0,
-    following:p.followingCount||p.following||p.following_count||0,
-    posts:p.postsCount||p.posts_count||p.mediaCount||p.media_count||0,
-    reels:p.reelsCount||p.reels_count||0,
+    followers:p.followersCount||p.followers||0,
+    following:p.followsCount||p.following||0,
+    posts:p.postsCount||p.mediaCount||0,
+    reels:p.igtvVideoCount||p.igtv_video_count||0,
     avg_likes,avg_comments,avg_views,
-    is_private:p.isPrivate||p.is_private||false,
-    is_verified:p.isVerified||p.is_verified||false,
+    is_private:p.isPrivate||false,
+    is_verified:p.verified||p.isVerified||false,
     last_post:lastPost
   };
 }
