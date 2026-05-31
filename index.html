@@ -446,12 +446,12 @@ async function fetchIGStats(username) {
     });
     const postsData = await postsRes.json();
     console.log('Posts response:', JSON.stringify(postsData).slice(0,300));
-    const items = postsData?.data?.items || postsData?.items || postsData?.data || [];
+    const items = postsData?.posts || postsData?.data?.items || postsData?.items || postsData?.data || [];
     if(Array.isArray(items) && items.length > 0){
-      avg_likes = Math.round(items.reduce((s,p)=>s+(p.like_count||p.edge_liked_by?.count||0),0)/items.length);
-      avg_comments = Math.round(items.reduce((s,p)=>s+(p.comment_count||p.edge_media_to_comment?.count||0),0)/items.length);
-      avg_views = Math.round(items.reduce((s,p)=>s+(p.view_count||p.video_view_count||p.play_count||0),0)/items.length);
-      const ts = items[0]?.taken_at || items[0]?.taken_at_timestamp;
+      avg_likes = Math.round(items.reduce((s,p)=>s+(p.node?.like_count||p.like_count||p.edge_liked_by?.count||0),0)/items.length);
+      avg_comments = Math.round(items.reduce((s,p)=>s+(p.node?.comment_count||p.comment_count||p.edge_media_to_comment?.count||0),0)/items.length);
+      avg_views = Math.round(items.reduce((s,p)=>s+(p.node?.view_count||p.node?.video_view_count||p.view_count||p.video_view_count||p.play_count||0),0)/items.length);
+      const ts = items[0]?.node?.taken_at||items[0]?.taken_at || items[0]?.taken_at_timestamp;
       if(ts) lastPost = new Date(ts * 1000).toISOString();
     }
   } catch(e) { console.log('Posts fetch failed:', e.message); }
