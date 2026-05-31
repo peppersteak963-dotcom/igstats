@@ -406,6 +406,80 @@ function save(){ S.set('igs_accts_'+user.id, accounts); }
 
 // ── REAL INSTAGRAM FETCH ─────────────────────────────────────────
 const RAPIDAPI_KEY = 'e0eee6abacmshb6d74a3063c8677p104f29jsn7ed028abf06d';
+const RAPIDAPI_HOST2 = 'instagram-scraper2.p.rapidapi.com';
+
+async function fetchIGStats(username) {
+  const headers2 = {
+    'Content-Type': 'application/json',
+    'x-rapidapi-host': RAPIDAPI_HOST2,
+    'x-rapidapi-key': RAPIDAPI_KEY
+  };
+
+  // Step 1: Get user info (followers, posts, verified, etc.)
+  const uRes = await fetch('https://' + RAPIDAPI_HOST2 + '/user_info?user_name=' + encodeURIComponent(username), {
+    method: 'GET', headers: headers2
+  });
+  const uData = await uRes.json();
+  console.log('UserInfo:', JSON.stringify(uData).slice(0, 400));
+
+  if(!uRes.ok) throw new Error('User not found: ' + (uData?.message || uRes.status));
+
+  const user = uData?.user || uData?.data?.user || uData?.data || uData;
+  if(!user || (!user.pk && !user.follower_count && !user.edge_followed_by)) 
+    throw new Error('User not found or private');
+
+  const userId = user.pk || user.id;
+  const followers = user.follower_count || user.edge_followed_by?.count || 0;
+  const following = user.following_count || user.edge_follow?.count || 0;
+  const posts = user.media_count || user.edge_owner_to_timeline_media?.count || 0;
+  const full_name = user.full_name || username;
+  const is_private = user.is_private || false;
+  const is_verified = user.is_verified || false;
+
+  let avg_likes = 0, avg_comments = 0, avg_views = 0, reels_count = 0, lastPost = null;
+
+  // Step 2: Get recent posts for likes & comments
+  try {
+    const postsRes = await fetch('https://' + RAPIDAPI_HOST2 + '/user_medias?user_id=' + userId + '&batch_size=12', {
+      method: 'GET', headers: headers2
+    });
+    const postsData = await postsRes.json();
+    console.log('Posts:', JSON.stringify(postsData).slice(0, 300));
+    const items = postsData?.medias || postsData?.items || postsData?.data || [];
+    if(Array.isArray(items) && items.length > 0) {
+      avg_likes = Math.round(items.reduce((s,p) => s + (p.like_count || p.likes || 0), 0) / items.length);
+      avg_comments = Math.round(items.reduce((s,p) => s + (p.comment_count || p.comments || 0), 0) / items.length);
+      const ts = items[0]?.taken_at || items[0]?.timestamp;
+      if(ts) lastPost = new Date(ts * 1000).toISOString();
+    }
+  } catch(e) { console.log('Posts failed:', e.message); }
+
+  // Step 3: Get reels for views & reels count
+  try {
+    const reelsRes = await fetch('https://' + RAPIDAPI_HOST2 + '/user_reels?user_id=' + userId, {
+      method: 'GET', headers: headers2
+    });
+    const reelsData = await reelsRes.json();
+    console.log('Reels:', JSON.stringify(reelsData).slice(0, 300));
+    const reels = reelsData?.reels || reelsData?.items || reelsData?.data || [];
+    if(Array.isArray(reels) && reels.length > 0) {
+      reels_count = reels.length;
+      avg_views = Math.round(reels.reduce((s,r) => {
+        const m = r.media || r;
+        return s + (m.play_count || m.view_count || m.video_view_count || 0);
+      }, 0) / reels.length);
+    }
+  } catch(e) { console.log('Reels failed:', e.message); }
+
+  return { username, full_name, followers, following, posts, reels: reels_count,
+    avg_likes, avg_comments, avg_views, is_private, is_verified, last_post: lastPost };
+}
+
+// ── ACCOUNTS ─────────────────────────────────────────────────────
+function save(){ S.set('igs_accts_'+user.id, accounts); }
+
+// ── REAL INSTAGRAM FETCH ─────────────────────────────────────────
+const RAPIDAPI_KEY = 'e0eee6abacmshb6d74a3063c8677p104f29jsn7ed028abf06d';
 
 async function fetchIGStats(username) {
   const url = 'https://instagram-scraper-stable-api.p.rapidapi.com/ig_get_fb_profile_hover.php?username_or_url=' + encodeURIComponent(username);
@@ -456,25 +530,39 @@ async function fetchIGStats(username) {
     }
   } catch(e) { console.log('Posts fetch failed:', e.message); }
 
-  // Fetch reels for view counts
+  // Fetch reels for view counts using instagram-scraper2 API
   try {
-    const reelsRes = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/get_ig_user_reels.php', {
-      method: 'POST',
+    // First get user_id from username
+    const uinfoRes = await fetch('https://instagram-scraper2.p.rapidapi.com/user_info?user_name=' + encodeURIComponent(username), {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
+        'Content-Type': 'application/json',
+        'x-rapidapi-host': 'instagram-scraper2.p.rapidapi.com',
         'x-rapidapi-key': RAPIDAPI_KEY
-      },
-      body: 'username_or_url=' + encodeURIComponent(username) + '&amount=12'
+      }
     });
-    const reelsData = await reelsRes.json();
-    console.log('Reels response:', JSON.stringify(reelsData).slice(0,300));
-    const reels = reelsData?.reels || reelsData?.data?.items || reelsData?.items || [];
-    if(Array.isArray(reels) && reels.length > 0){
-      avg_views = Math.round(reels.reduce((s,r)=>{
-        const n = r.node || r;
-        return s + (n.play_count||n.view_count||n.video_view_count||n.ig_play_count||0);
-      },0)/reels.length);
+    const uinfoData = await uinfoRes.json();
+    console.log('UserInfo2 response:', JSON.stringify(uinfoData).slice(0,200));
+    const userId = uinfoData?.user?.pk || uinfoData?.pk || uinfoData?.id || uinfoData?.data?.pk;
+    
+    if(userId) {
+      const reelsRes = await fetch('https://instagram-scraper2.p.rapidapi.com/user_reels?user_id=' + userId, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-rapidapi-host': 'instagram-scraper2.p.rapidapi.com',
+          'x-rapidapi-key': RAPIDAPI_KEY
+        }
+      });
+      const reelsData = await reelsRes.json();
+      console.log('Reels2 response:', JSON.stringify(reelsData).slice(0,300));
+      const reels = reelsData?.reels || reelsData?.data || reelsData?.items || [];
+      if(Array.isArray(reels) && reels.length > 0){
+        avg_views = Math.round(reels.reduce((s,r)=>{
+          const n = r.node || r.media || r;
+          return s + (n.play_count||n.view_count||n.video_view_count||n.ig_play_count||0);
+        },0)/reels.length);
+      }
     }
   } catch(e) { console.log('Reels fetch failed:', e.message); }
 
