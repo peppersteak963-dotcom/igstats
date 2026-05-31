@@ -244,6 +244,9 @@ async function fetchIGStats(username){
 
   // Get posts from jsonData - HasData returns latestIgtVideos array
   const jd = data?.jsonData;
+  console.log('jsonData keys:', jd ? Object.keys(jd).join(',') : 'NULL');
+  console.log('latestIgtVideos length:', jd?.latestIgtVideos?.length);
+  if(jd?.latestIgtVideos?.length>0) console.log('First video:', JSON.stringify(jd.latestIgtVideos[0]).slice(0,300));
   const latestVideos = jd?.latestIgtVideos || p?.latestIgtVideos || [];
   const timeline = jd?.edge_owner_to_timeline_media?.edges || p?.edge_owner_to_timeline_media?.edges || [];
   const all_posts = latestVideos.length > 0 ? latestVideos : timeline;
