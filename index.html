@@ -384,7 +384,7 @@ async function fetchIGStats(username) {
   }
   const clips = data?.hikerClips || [];
   if (Array.isArray(clips) && clips.length > 0) {
-    avg_views = Math.round(clips.reduce((s, c) => s + (c.play_count || c.view_count || 0), 0) / clips.length);
+    avg_views = clips.reduce((s, c) => s + (c.play_count || c.view_count || 0), 0);
     if (!lastPost && clips[0]?.taken_at) {
       const ts = clips[0].taken_at_ts || clips[0].taken_at;
       lastPost = new Date(typeof ts === 'number' ? ts * 1000 : ts).toISOString();
