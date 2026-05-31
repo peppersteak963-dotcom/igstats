@@ -38,7 +38,7 @@
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
 
 /* AUTH */
-#auth-page{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+#auth-page{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;background:var(--bg);position:relative;z-index:9999}
 .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:36px 32px;width:100%;max-width:390px;box-shadow:var(--shadow-md)}
 .auth-logo{display:flex;align-items:center;gap:8px;margin-bottom:6px;justify-content:center}
 .auth-logo-dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
@@ -363,13 +363,13 @@ function doAuth(){
 
     const users=S.get('igs_users',[]);
 
-    if(authMode==='login'){
-      const found=users.find(u=>u.email===em);
-      if(!found){ showAErr('No account found with that email. Create an account first.'); return; }
+    const found=users.find(u=>u.email===em);
+    if(found){
+      // Login
       if(btoa(pw)!==found.pwh){ showAErr('Incorrect password'); return; }
       user=found;
     } else {
-      if(users.find(u=>u.email===em)){ showAErr('An account with that email already exists. Sign in instead.'); return; }
+      // Auto-register new user
       user={ id:'u_'+Date.now(), email:em, name:fn||em.split('@')[0], pwh:btoa(pw) };
       users.push(user);
       S.set('igs_users',users);
