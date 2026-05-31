@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IG-Statistics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0ede8;
+  --surface:#ffffff;
+  --surface2:#f7f5f2;
+  --surface3:#f0ede8;
+  --border:#e2ddd6;
+  --border2:#c8c3bb;
+  --text:#1c1a17;
+  --text2:#6b6860;
+  --text3:#9e9b95;
+  --accent:#d63b2e;
+  --blue:#1a5fb4;
+  --blue-bg:#eef3fb;
+  --blue-border:#c0d4f0;
+  --green:#1e7a4a;
+  --green-bg:#eaf5ee;
+  --green-border:#b8e0c8;
+  --amber:#9a5000;
+  --amber-bg:#fef3e2;
+  --amber-border:#f5d49a;
+  --red:#b83232;
+  --red-bg:#fdecea;
+  --red-border:#f0b8b4;
+  --shadow:0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.1),0 2px 6px rgba(0,0,0,0.06);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
+
+/* AUTH */
+#auth-page{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:36px 32px;width:100%;max-width:390px;box-shadow:var(--shadow-md)}
+.auth-logo{display:flex;align-items:center;gap:8px;margin-bottom:6px;justify-content:center}
+.auth-logo-dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.auth-logo-text{font-size:14px;font-weight:600;letter-spacing:.1em}
+.auth-tagline{text-align:center;font-size:12px;color:var(--text3);margin-bottom:28px}
+.auth-tabs{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;margin-bottom:22px;gap:3px}
+.auth-tab{flex:1;padding:7px;text-align:center;font-size:12px;font-weight:500;border-radius:8px;cursor:pointer;transition:.15s;color:var(--text2);border:none;background:transparent;font-family:inherit}
+.auth-tab.active{background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:.03em;text-transform:uppercase}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:13px;font-family:inherit;color:var(--text);transition:.15s}
+.form-input:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(26,95,180,.1)}
+.form-input::placeholder{color:var(--text3)}
+.input-wrap{display:flex;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:9px;overflow:hidden;transition:.15s}
+.input-wrap:focus-within{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(26,95,180,.1)}
+.input-prefix-label{padding:9px 4px 9px 12px;font-size:13px;color:var(--text3);flex-shrink:0}
+.input-wrap input{flex:1;border:none;background:transparent;padding:9px 12px 9px 0;font-size:13px;font-family:inherit;color:var(--text);outline:none}
+.btn-primary{width:100%;background:var(--text);color:#fff;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:.15s;margin-top:6px;letter-spacing:.01em}
+.btn-primary:hover{background:#2d2b27}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+.auth-error{background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--red);margin-bottom:12px;display:none}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--text3);font-size:11px}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* APP */
+#app{display:none;min-height:100vh;flex-direction:column}
+#app.show{display:flex}
+
+/* Topbar */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 18px;display:flex;align-items:center;height:42px;gap:14px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.logo{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.logo-dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.logo-text{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--text)}
+.topbar-badge{font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 9px;color:var(--text2);font-weight:500;white-space:nowrap}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.tb-link{font-size:12px;color:var(--text2);border:none;background:none;cursor:pointer;padding:5px 8px;border-radius:7px;font-family:inherit;transition:.12s;display:flex;align-items:center;gap:4px}
+.tb-link:hover{background:var(--surface2);color:var(--text)}
+.tb-div{width:1px;height:16px;background:var(--border)}
+.tb-email{font-size:11px;color:var(--text3);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Metrics */
+.metrics{background:var(--surface);border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(7,1fr)}
+.metric{padding:11px 16px;border-right:1px solid var(--border)}
+.metric:last-child{border-right:none}
+.metric-lbl{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
+.metric-val{font-size:20px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace;letter-spacing:-.02em}
+
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden;min-height:0}
+.sidebar{width:196px;background:var(--surface);border-right:1px solid var(--border);padding:14px 10px;flex-shrink:0;overflow-y:auto}
+.sb-section{margin-bottom:18px}
+.sb-hd{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:0 7px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between}
+.sb-hd i{font-size:13px;cursor:pointer;opacity:.6;transition:.1s}
+.sb-hd i:hover{opacity:1}
+.sb-item{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--text2);transition:.12s;margin-bottom:1px}
+.sb-item:hover{background:var(--surface2);color:var(--text)}
+.sb-item.active{background:var(--blue-bg);color:var(--blue);font-weight:500}
+.sb-count{font-size:11px;background:var(--surface3);border:1px solid var(--border);border-radius:20px;padding:1px 7px;color:var(--text3);min-width:22px;text-align:center}
+.sb-item.active .sb-count{background:#ddeaf8;border-color:var(--blue-border);color:var(--blue)}
+
+/* Main */
+.main{flex:1;overflow:auto;display:flex;flex-direction:column;min-width:0}
+.filter-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:42px;z-index:90}
+.search-box{position:relative;min-width:210px}
+.search-box i{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none}
+.search-box input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px 6px 30px;font-size:12px;font-family:inherit;color:var(--text);transition:.15s}
+.search-box input:focus{outline:none;border-color:var(--blue);background:#fff}
+.search-box input::placeholder{color:var(--text3)}
+.pills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:.12s;white-space:nowrap;user-select:none}
+.pill:hover{border-color:var(--border2);color:var(--text)}
+.pill.on{background:var(--text);color:#fff;border-color:var(--text)}
+.pdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.fr{margin-left:auto;display:flex;align-items:center;gap:7px}
+.ic-btn{border:1px solid var(--border);background:var(--surface);border-radius:7px;width:29px;height:29px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);transition:.12s;font-size:14px}
+.ic-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+.add-btn{display:flex;align-items:center;gap:5px;background:var(--text);color:#fff;border:none;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;transition:.15s;white-space:nowrap}
+.add-btn:hover{background:#2d2b27}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;flex:1}
+table{width:100%;border-collapse:collapse;min-width:1000px}
+thead tr{background:var(--surface2)}
+th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--text2)}
+th.asc .si::before{content:"\ea61"}
+th.desc .si::before{content:"\ea64"}
+.si{font-family:'tabler-icons';font-size:10px;margin-left:2px;opacity:.3;display:inline}
+th.sorted .si{opacity:.9;color:var(--blue)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#faf8f5}
+.aw{display:flex;align-items:center;gap:9px}
+.av{width:27px;height:27px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--text2);flex-shrink:0;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover}
+.ahandle{color:var(--blue);font-weight:500;font-size:12px;display:flex;align-items:center;gap:3px}
+.aname{font-size:11px;color:var(--text3)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500;border:1px solid transparent}
+.bg-good{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.bg-bad{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.bg-watch{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+.bg-none{background:var(--surface2);color:var(--text3);border-color:var(--border)}
+.bdot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.num{font-family:'DM Mono',monospace;font-size:12px}
+.mu{color:var(--text3)}
+.dp{color:var(--green);font-family:'DM Mono',monospace;font-size:11px}
+.dn{color:var(--red);font-family:'DM Mono',monospace;font-size:11px}
+.ra{display:flex;align-items:center;gap:3px;opacity:0;transition:.12s}
+tr:hover .ra{opacity:1}
+.rb{border:none;background:none;color:var(--text3);cursor:pointer;padding:4px;border-radius:5px;display:flex;font-size:13px;transition:.12s}
+.rb:hover{background:var(--surface2);color:var(--text)}
+.rb.del:hover{background:var(--red-bg);color:var(--red)}
+.status-sel{border:none;background:transparent;font-family:inherit;font-size:11px;cursor:pointer;color:inherit;max-width:80px}
+.empty{text-align:center;padding:64px 20px;color:var(--text3)}
+.empty i{font-size:36px;display:block;margin:0 auto 14px;color:var(--border2)}
+.empty p{font-size:13px;line-height:1.6}
+.spin{animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Modal */
+.ov{position:fixed;inset:0;background:rgba(28,26,23,.3);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:380px;box-shadow:var(--shadow-md);padding:24px}
+.mhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.mtitle{font-size:15px;font-weight:600}
+.mclose{border:none;background:none;color:var(--text3);cursor:pointer;font-size:18px;padding:2px 4px;border-radius:5px;display:flex;line-height:1}
+.mclose:hover{color:var(--text);background:var(--surface2)}
+.mhint{font-size:11px;color:var(--text3);margin-top:5px}
+.mactions{display:flex;gap:8px;margin-top:18px}
+.btn-out{flex:1;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:8px;padding:9px;font-size:13px;font-family:inherit;cursor:pointer;transition:.15s}
+.btn-out:hover{background:var(--surface2)}
+.btn-fill{flex:1;border:none;background:var(--text);color:#fff;border-radius:8px;padding:9px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-fill:hover{background:#2d2b27}
+.btn-fill:disabled{opacity:.4;cursor:not-allowed}
+.merr{background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;padding:8px 11px;font-size:12px;color:var(--red);margin-bottom:10px;display:none}
+
+/* Toasts */
+#toasts{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{background:var(--text);color:#fff;padding:9px 14px;border-radius:9px;font-size:12px;box-shadow:var(--shadow-md);animation:tsin .2s ease;max-width:260px;pointer-events:auto}
+.toast.ok{background:var(--green)}
+.toast.err{background:var(--red)}
+@keyframes tsin{from{transform:translateX(14px);opacity:0}to{transform:none;opacity:1}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo"><div class="auth-logo-dot"></div><span class="auth-logo-text">IG-STATISTICS</span></div>
+    <p class="auth-tagline">Track Instagram accounts — followers, views, reels &amp; more</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="setMode('login')">Sign in</button>
+      <button class="auth-tab" onclick="setMode('register')">Create account</button>
+    </div>
+    <div class="auth-error" id="aerr"></div>
+    <div id="fn-wrap" style="display:none" class="form-group">
+      <label class="form-label">Full name</label>
+      <input class="form-input" id="fn" type="text" placeholder="Your name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email address</label>
+      <input class="form-input" id="em" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doAuth()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" id="pw" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doAuth()">
+    </div>
+    <button class="btn-primary" id="auth-btn" onclick="doAuth()">Sign in</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot"></div><span class="logo-text">IG-STATISTICS</span></div>
+    <span class="topbar-badge" id="tb-badge">ALL ACCOUNTS 0</span>
+    <div class="tb-right">
+      <button class="tb-link"><i class="ti ti-chart-line"></i> Insights</button>
+      <span class="tb-link" style="cursor:default">juicy.bio</span>
+      <div class="tb-div"></div>
+      <span class="tb-email" id="tb-email"></span>
+      <button class="tb-link" onclick="logout()"><i class="ti ti-logout"></i> Sign out</button>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-lbl">Followers</div><div class="metric-val" id="m0">0</div></div>
+    <div class="metric"><div class="metric-lbl">Views</div><div class="metric-val" id="m1">0</div></div>
+    <div class="metric"><div class="metric-lbl">Posts</div><div class="metric-val" id="m2">0</div></div>
+    <div class="metric"><div class="metric-lbl">Reels</div><div class="metric-val" id="m3">0</div></div>
+    <div class="metric"><div class="metric-lbl">Likes</div><div class="metric-val" id="m4">0</div></div>
+    <div class="metric"><div class="metric-lbl">Comments</div><div class="metric-val" id="m5">0</div></div>
+    <div class="metric"><div class="metric-lbl">Accounts</div><div class="metric-val" id="m6">0</div></div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sb-section">
+        <div class="sb-hd"><span>Owners</span><i class="ti ti-adjustments-horizontal"></i></div>
+        <div class="sb-item active"><span>All accounts</span><span class="sb-count" id="sb-all">0</span></div>
+        <div class="sb-item" style="color:var(--text3)"><i class="ti ti-user" style="font-size:12px;margin-right:4px"></i><span>No owner</span><span class="sb-count" id="sb-no">0</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="filter-bar">
+        <div class="search-box">
+          <i class="ti ti-search"></i>
+          <input id="q" placeholder="Search by username, name or note…" oninput="draw()">
+        </div>
+        <div class="pills">
+          <div class="pill on" data-f="all" onclick="setF('all')">All (<span id="pa">0</span>)</div>
+          <div class="pill" data-f="none" onclick="setF('none')"><span class="pdot" style="background:var(--border2)"></span>No status (<span id="pn">0</span>)</div>
+          <div class="pill" data-f="good" onclick="setF('good')"><span class="pdot" style="background:var(--green)"></span>Good (<span id="pg">0</span>)</div>
+          <div class="pill" data-f="watching" onclick="setF('watching')"><span class="pdot" style="background:var(--amber)"></span>Watching (<span id="pw2">0</span>)</div>
+          <div class="pill" data-f="bad" onclick="setF('bad')"><span class="pdot" style="background:var(--red)"></span>Bad (<span id="pb">0</span>)</div>
+          <div class="pill" style="border-color:var(--green-border);color:var(--green);background:var(--green-bg)"><span class="pdot" style="background:var(--green)"></span>Available (<span id="pav">0</span>)</div>
+          <div class="pill mu">● Not found (0)</div>
+        </div>
+        <div class="fr">
+          <div class="pill mu"><i class="ti ti-layout-columns" style="font-size:12px;margin-right:3px"></i>Columns 15/15</div>
+          <button class="ic-btn" onclick="load()" title="Refresh"><i class="ti ti-refresh"></i></button>
+          <button class="ic-btn"><i class="ti ti-layout-grid"></i></button>
+          <button class="add-btn" onclick="openAdd()"><i class="ti ti-plus" style="font-size:13px"></i> Add accounts</button>
+        </div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" onchange="toggleAll(this.checked)" style="cursor:pointer"></th>
+            <th onclick="srt('username')">Account <span class="si"></span></th>
+            <th onclick="srt('status')">Status <span class="si"></span></th>
+            <th>Owner</th>
+            <th>Category</th>
+            <th onclick="srt('followers')">Followers <span class="si"></span></th>
+            <th onclick="srt('d24')">△ 24H <span class="si"></span></th>
+            <th onclick="srt('views')">Views <span class="si"></span></th>
+            <th>△ 24H</th>
+            <th>△ 7D</th>
+            <th>△ 30D</th>
+            <th onclick="srt('posts')">Posts <span class="si"></span></th>
+            <th onclick="srt('reels')">Reels <span class="si"></span></th>
+            <th onclick="srt('likes')">Likes <span class="si"></span></th>
+            <th onclick="srt('comments')">Comments <span class="si"></span></th>
+            <th onclick="srt('lastPost')">Last Post <span class="si"></span></th>
+            <th>Recent</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div class="ov" id="add-modal" style="display:none" onclick="if(event.target===this)closeAdd()">
+  <div class="modal">
+    <div class="mhd">
+      <span class="mtitle">Add Instagram account</span>
+      <button class="mclose" onclick="closeAdd()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Instagram username</label>
+      <div class="input-wrap">
+        <span class="input-prefix-label">@</span>
+        <input id="new-un" placeholder="username" onkeydown="if(event.key==='Enter')addAcct()">
+      </div>
+      <p class="mhint">Stats will be simulated — connect a backend for real data</p>
+    </div>
+    <div class="merr" id="merr"></div>
+    <div class="mactions">
+      <button class="btn-out" onclick="closeAdd()">Cancel</button>
+      <button class="btn-fill" id="add-do" onclick="addAcct()"><i class="ti ti-plus" style="font-size:13px"></i> Add account</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ── STORAGE HELPERS ──────────────────────────────────────────────
+const S = {
+  get:(k,d=null)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d }catch{return d} },
+  set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} },
+  del:(k)=>localStorage.removeItem(k)
+};
+
+// ── STATE ────────────────────────────────────────────────────────
+let user=null, accounts=[], fStatus='all', sc='username', sd='asc', authMode='login';
+
+// ── BOOT ─────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded',()=>{
+  // Always start on login tab
+  setMode('login');
+  user = S.get('igs_user');
+  if(user){ showApp(); accounts=S.get('igs_accts_'+user.id,[]); renderAll(); }
+});
+
+// ── AUTH ─────────────────────────────────────────────────────────
+function setMode(m){
+  authMode=m;
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='login')||(i===1&&m==='register')));
+  document.getElementById('fn-wrap').style.display=m==='register'?'block':'none';
+  document.getElementById('auth-btn').textContent=m==='login'?'Sign in':'Create account';
+  document.getElementById('aerr').style.display='none';
+}
+
+function doAuth(){
+  try {
+    const em=(document.getElementById('em').value||'').trim();
+    const pw=(document.getElementById('pw').value||'');
+    const fn=(document.getElementById('fn').value||'').trim();
+    const aerr=document.getElementById('aerr');
+    aerr.style.display='none';
+    if(!em||!pw){ showAErr('Email and password are required'); return; }
+    if(!em.includes('@')){ showAErr('Enter a valid email address'); return; }
+    if(pw.length<6){ showAErr('Password must be at least 6 characters'); return; }
+
+    const users=S.get('igs_users',[]);
+
+    if(authMode==='login'){
+      const found=users.find(u=>u.email===em);
+      if(!found){ showAErr('No account found with that email. Create an account first.'); return; }
+      if(btoa(pw)!==found.pwh){ showAErr('Incorrect password'); return; }
+      user=found;
+    } else {
+      if(users.find(u=>u.email===em)){ showAErr('An account with that email already exists. Sign in instead.'); return; }
+      user={ id:'u_'+Date.now(), email:em, name:fn||em.split('@')[0], pwh:btoa(pw) };
+      users.push(user);
+      S.set('igs_users',users);
+    }
+    S.set('igs_user',user);
+    accounts=S.get('igs_accts_'+user.id,[]);
+    showApp();
+    renderAll();
+  } catch(e) {
+    showAErr('Something went wrong. Please try again.');
+    console.error(e);
+  }
+}
+function showAErr(msg){ const el=document.getElementById('aerr'); el.textContent=msg; el.style.display='block'; }
+
+function logout(){
+  S.del('igs_user'); user=null; accounts=[];
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('auth-page').style.display='flex';
+  document.getElementById('em').value='';
+  document.getElementById('pw').value='';
+  document.getElementById('aerr').style.display='none';
+}
+
+function showApp(){
+  document.getElementById('auth-page').style.display='none';
+  document.getElementById('app').classList.add('show');
+  document.getElementById('tb-email').textContent=user.email;
+}
+
+// ── ACCOUNTS ─────────────────────────────────────────────────────
+function save(){ S.set('igs_accts_'+user.id, accounts); }
+
+function addAcct(){
+  const un=document.getElementById('new-un').value.replace('@','').trim().toLowerCase();
+  const merr=document.getElementById('merr');
+  merr.style.display='none';
+  if(!un){ merr.textContent='Enter a username'; merr.style.display='block'; return; }
+  if(accounts.find(a=>a.username===un)){ merr.textContent='@'+un+' is already tracked'; merr.style.display='block'; return; }
+
+  const btn=document.getElementById('add-do');
+  btn.disabled=true; btn.innerHTML='<i class="ti ti-loader-2 spin"></i> Adding…';
+
+  // Simulate a fetch delay then add with mock stats
+  setTimeout(()=>{
+    const acct={
+      id:'a_'+Date.now(),
+      username:un,
+      full_name: un.charAt(0).toUpperCase()+un.slice(1).replace(/[._]/g,' '),
+      status:'none',
+      followers: Math.floor(Math.random()*200000+500),
+      views: Math.floor(Math.random()*5000000),
+      posts: Math.floor(Math.random()*300),
+      reels: Math.floor(Math.random()*80),
+      likes: Math.floor(Math.random()*50000),
+      comments: Math.floor(Math.random()*3000),
+      d24: (Math.random()>.5?1:-1)*Math.floor(Math.random()*500),
+      lastPost: new Date(Date.now()-Math.random()*30*86400000).toISOString(),
+      addedAt: new Date().toISOString()
+    };
+    accounts.unshift(acct);
+    save();
+    renderAll();
+    closeAdd();
+    toast('@'+un+' added!','ok');
+    btn.disabled=false; btn.innerHTML='<i class="ti ti-plus" style="font-size:13px"></i> Add account';
+  }, 900);
+}
+
+function delAcct(id,un){
+  if(!confirm('Remove @'+un+'?')) return;
+  accounts=accounts.filter(a=>a.id!==id);
+  save(); renderAll(); toast('@'+un+' removed');
+}
+
+function chStatus(id,status){
+  const a=accounts.find(a=>a.id===id);
+  if(a){ a.status=status; save(); renderAll(); }
+}
+
+// ── RENDER ───────────────────────────────────────────────────────
+function fmt(n){
+  if(n==null) return '—';
+  const abs=Math.abs(n);
+  if(abs>=1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
+  if(abs>=1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+  return n.toString();
+}
+function fmtD(n){
+  if(!n) return '<span class="mu">—</span>';
+  return `<span class="${n>0?'dp':'dn'}">${n>0?'+':'-'}${fmt(Math.abs(n))}</span>`;
+}
+function timeAgo(iso){
+  if(!iso) return '<span class="mu">—</span>';
+  const s=Math.floor((Date.now()-new Date(iso))/1000);
+  if(s<3600) return Math.floor(s/60)+'m ago';
+  if(s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function badge(status){
+  const m={good:['bg-good','Good'],bad:['bg-bad','Bad'],watching:['bg-watch','Watching'],none:['bg-none','No status']};
+  const [c,l]=m[status]||m.none;
+  return `<span class="badge ${c}"><span class="bdot"></span>${l}</span>`;
+}
+function av(a){
+  const ini=(a.username||'').slice(0,2).toUpperCase();
+  return `<div class="av">${ini}</div>`;
+}
+
+function getRows(){
+  const q=(document.getElementById('q')?.value||'').toLowerCase();
+  return accounts.filter(a=>{
+    const mq=!q||a.username.includes(q)||(a.full_name||'').toLowerCase().includes(q);
+    const ms=fStatus==='all'||a.status===fStatus;
+    return mq&&ms;
+  }).sort((a,b)=>{
+    let va=a[sc]??0, vb=b[sc]??0;
+    if(typeof va==='string') va=va.toLowerCase();
+    if(typeof vb==='string') vb=vb.toLowerCase();
+    return sd==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+  });
+}
+
+function draw(){
+  const rows=getRows();
+  const tb=document.getElementById('tbody');
+  if(!rows.length){
+    tb.innerHTML=`<tr><td colspan="18"><div class="empty">
+      <i class="ti ti-${accounts.length?'filter-off':'user-plus'}"></i>
+      <p>${accounts.length?'No accounts match your filters':'No accounts yet — click <strong>Add accounts</strong> to get started'}</p>
+    </div></td></tr>`;
+    return;
+  }
+  tb.innerHTML=rows.map(a=>`<tr>
+    <td><input type="checkbox" style="cursor:pointer"></td>
+    <td><div class="aw">${av(a)}<div>
+      <div class="ahandle"><i class="ti ti-brand-instagram" style="font-size:11px;color:var(--text3)"></i> @${a.username}</div>
+      ${a.full_name&&a.full_name!==a.username?`<div class="aname">${a.full_name}</div>`:''}
+    </div></div></td>
+    <td>
+      <select class="status-sel" onchange="chStatus('${a.id}',this.value)" style="margin-right:4px">
+        ${['none','good','watching','bad'].map(s=>`<option value="${s}"${a.status===s?' selected':''}>${{none:'No status',good:'Good',watching:'Watching',bad:'Bad'}[s]}</option>`).join('')}
+      </select>
+      ${badge(a.status)}
+    </td>
+    <td class="mu">—</td>
+    <td class="mu">—</td>
+    <td class="num">${a.followers?fmt(a.followers):'<span class="mu">—</span>'}</td>
+    <td>${fmtD(a.d24)}</td>
+    <td class="num">${a.views?fmt(a.views):'<span class="mu">—</span>'}</td>
+    <td class="mu">—</td><td class="mu">—</td><td class="mu">—</td>
+    <td class="num">${a.posts??0}</td>
+    <td class="num">${a.reels??0}</td>
+    <td class="num">${a.likes?fmt(a.likes):'<span class="mu">0</span>'}</td>
+    <td class="num">${a.comments?fmt(a.comments):'<span class="mu">0</span>'}</td>
+    <td style="font-size:11px">${timeAgo(a.lastPost)}</td>
+    <td class="mu" style="font-size:11px">No media</td>
+    <td><div class="ra">
+      <button class="rb" title="Remove" onclick="delAcct('${a.id}','${a.username}')"><i class="ti ti-trash del"></i></button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function updateMeta(){
+  const sum=k=>accounts.reduce((s,a)=>s+(Number(a[k])||0),0);
+  ['followers','views','posts','reels','likes','comments'].forEach((k,i)=>{ document.getElementById('m'+i).textContent=fmt(sum(k)); });
+  document.getElementById('m6').textContent=accounts.length;
+  document.getElementById('tb-badge').textContent='ALL ACCOUNTS '+accounts.length;
+  document.getElementById('sb-all').textContent=accounts.length;
+  document.getElementById('sb-no').textContent=accounts.length;
+  const c={all:accounts.length,none:0,good:0,watching:0,bad:0};
+  accounts.forEach(a=>{if(c[a.status]!==undefined)c[a.status]++;});
+  document.getElementById('pa').textContent=c.all;
+  document.getElementById('pn').textContent=c.none;
+  document.getElementById('pg').textContent=c.good;
+  document.getElementById('pw2').textContent=c.watching;
+  document.getElementById('pb').textContent=c.bad;
+  document.getElementById('pav').textContent=accounts.length;
+}
+
+function renderAll(){ updateMeta(); draw(); }
+
+// ── INTERACTIONS ─────────────────────────────────────────────────
+function setF(f){
+  fStatus=f;
+  document.querySelectorAll('.pill[data-f]').forEach(p=>p.classList.toggle('on',p.dataset.f===f));
+  draw();
+}
+
+function srt(col){
+  if(sc===col) sd=sd==='asc'?'desc':'asc';
+  else{ sc=col; sd='desc'; }
+  document.querySelectorAll('th').forEach(th=>{th.classList.remove('asc','desc','sorted');});
+  const idx={username:1,status:2,followers:5,d24:6,views:7,posts:11,reels:12,likes:13,comments:14,lastPost:15};
+  const ths=document.querySelectorAll('th');
+  if(idx[col]!==undefined){
+    const th=ths[idx[col]];
+    if(th){ th.classList.add(sd,'sorted'); }
+  }
+  draw();
+}
+
+function toggleAll(c){ document.querySelectorAll('#tbody input[type=checkbox]').forEach(x=>x.checked=c); }
+
+function openAdd(){
+  document.getElementById('add-modal').style.display='flex';
+  document.getElementById('new-un').value='';
+  document.getElementById('merr').style.display='none';
+  const btn=document.getElementById('add-do');
+  btn.disabled=false; btn.innerHTML='<i class="ti ti-plus" style="font-size:13px"></i> Add account';
+  setTimeout(()=>document.getElementById('new-un').focus(),60);
+}
+function closeAdd(){ document.getElementById('add-modal').style.display='none'; }
+
+function toast(msg,type=''){
+  const el=document.createElement('div');
+  el.className='toast'+(type?' '+type:'');
+  el.textContent=msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+
+function load(){ renderAll(); toast('Refreshed'); }
+</script>
+</body>
+</html>
