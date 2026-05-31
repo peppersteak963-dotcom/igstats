@@ -193,8 +193,8 @@ tr:hover .ra{opacity:1}
     <div class="auth-logo"><div class="auth-logo-dot"></div><span class="auth-logo-text">IG-STATISTICS</span></div>
     <p class="auth-tagline">Track Instagram accounts — followers, views, reels &amp; more</p>
     <div class="auth-tabs">
-      <button class="auth-tab active" onclick="setMode('login')">Sign in</button>
-      <button class="auth-tab" onclick="setMode('register')">Create account</button>
+      <button class="auth-tab active" id="tab-login" onclick="setMode('login')">Sign in</button>
+      <button class="auth-tab" id="tab-register" onclick="setMode('register')">Create account</button>
     </div>
     <div class="auth-error" id="aerr"></div>
     <div id="fn-wrap" style="display:none" class="form-group">
@@ -336,8 +336,6 @@ let user=null, accounts=[], fStatus='all', sc='username', sd='asc', authMode='lo
 
 // ── BOOT ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
-  // Always start on login tab
-  setMode('login');
   user = S.get('igs_user');
   if(user){ showApp(); accounts=S.get('igs_accts_'+user.id,[]); renderAll(); }
 });
@@ -345,7 +343,8 @@ window.addEventListener('DOMContentLoaded',()=>{
 // ── AUTH ─────────────────────────────────────────────────────────
 function setMode(m){
   authMode=m;
-  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='login')||(i===1&&m==='register')));
+  document.getElementById('tab-login').classList.toggle('active', m==='login');
+  document.getElementById('tab-register').classList.toggle('active', m==='register');
   document.getElementById('fn-wrap').style.display=m==='register'?'block':'none';
   document.getElementById('auth-btn').textContent=m==='login'?'Sign in':'Create account';
   document.getElementById('aerr').style.display='none';
