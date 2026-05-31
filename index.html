@@ -471,7 +471,10 @@ async function fetchIGStats(username) {
     console.log('Reels response:', JSON.stringify(reelsData).slice(0,300));
     const reels = reelsData?.reels || reelsData?.data?.items || reelsData?.items || [];
     if(Array.isArray(reels) && reels.length > 0){
-      avg_views = Math.round(reels.reduce((s,r)=>s+(r.play_count||r.view_count||r.video_view_count||0),0)/reels.length);
+      avg_views = Math.round(reels.reduce((s,r)=>{
+        const n = r.node || r;
+        return s + (n.play_count||n.view_count||n.video_view_count||n.ig_play_count||0);
+      },0)/reels.length);
     }
   } catch(e) { console.log('Reels fetch failed:', e.message); }
 
