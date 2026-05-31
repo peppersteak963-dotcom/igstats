@@ -419,40 +419,50 @@ async function fetchIGStats(username) {
     }
   });
   
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); }
-  catch(e) { throw new Error('Invalid API response'); }
-  
-  if(!res.ok) throw new Error('API error ' + res.status + ': ' + (data?.message || text.slice(0,100)));
-  
+  const data = await res.json();
   console.log('API response:', JSON.stringify(data).slice(0, 500));
   
-  // Handle response shape
-  const user = data?.data?.user || data?.graphql?.user || data?.user || data?.data || data;
+  if(!res.ok) throw new Error('API error ' + res.status);
+  
+  // This API returns data in user_data key
+  const user = data?.user_data || data?.data?.user || data?.user || data;
   if(!user) throw new Error('User not found');
 
-  const followers = user.edge_followed_by?.count ?? user.follower_count ?? user.followers ?? 0;
-  const posts_count = user.edge_owner_to_timeline_media?.count ?? user.media_count ?? user.posts ?? 0;
+  const followers = user.follower_count ?? user.edge_followed_by?.count ?? 0;
+  const following = user.following_count ?? user.edge_follow?.count ?? 0;
+  const posts_count = user.media_count ?? user.edge_owner_to_timeline_media?.count ?? 0;
 
-  const media = user.edge_owner_to_timeline_media?.edges || user.edge_felix_video_timeline?.edges || [];
-  let avg_likes=0, avg_comments=0, avg_views=0;
-  if(media.length > 0){
-    avg_likes = Math.round(media.reduce((s,e)=>s+(e.node?.edge_liked_by?.count||e.node?.like_count||0),0)/media.length);
-    avg_comments = Math.round(media.reduce((s,e)=>s+(e.node?.edge_media_to_comment?.count||e.node?.comment_count||0),0)/media.length);
-    avg_views = Math.round(media.reduce((s,e)=>s+(e.node?.video_view_count||e.node?.view_count||0),0)/media.length);
-  }
-  const lastPost = media[0]?.node?.taken_at_timestamp
-    ? new Date(media[0].node.taken_at_timestamp * 1000).toISOString()
-    : null;
+  // Get posts for avg stats - call user posts endpoint
+  let avg_likes=0, avg_comments=0, avg_views=0, lastPost=null;
+  try {
+    const postsRes = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/ig_get_user_posts.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY
+      },
+      body: 'username_or_url=' + encodeURIComponent(username) + '&amount=12'
+    });
+    const postsData = await postsRes.json();
+    console.log('Posts response:', JSON.stringify(postsData).slice(0,300));
+    const items = postsData?.data?.items || postsData?.items || postsData?.data || [];
+    if(Array.isArray(items) && items.length > 0){
+      avg_likes = Math.round(items.reduce((s,p)=>s+(p.like_count||p.edge_liked_by?.count||0),0)/items.length);
+      avg_comments = Math.round(items.reduce((s,p)=>s+(p.comment_count||p.edge_media_to_comment?.count||0),0)/items.length);
+      avg_views = Math.round(items.reduce((s,p)=>s+(p.view_count||p.video_view_count||p.play_count||0),0)/items.length);
+      const ts = items[0]?.taken_at || items[0]?.taken_at_timestamp;
+      if(ts) lastPost = new Date(ts * 1000).toISOString();
+    }
+  } catch(e) { console.log('Posts fetch failed:', e.message); }
 
   return {
     username: user.username || username,
     full_name: user.full_name || username,
     followers,
-    following: user.edge_follow?.count || user.following_count || 0,
+    following,
     posts: posts_count,
-    reels: user.edge_felix_video_timeline?.count || 0,
+    reels: user.total_clips_count || 0,
     avg_likes,
     avg_comments,
     avg_views,
