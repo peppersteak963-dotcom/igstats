@@ -179,7 +179,7 @@ tr:hover .ra{opacity:1}
           <div class="pill" style="border-color:var(--green-border);color:var(--green);background:var(--green-bg)"><span class="pdot" style="background:var(--green)"></span>Available (<span id="pav">0</span>)</div>
         </div>
         <div class="fr">
-          <button class="ic-btn" onclick="renderAll()"><i class="ti ti-refresh"></i></button>
+          <button class="ic-btn" onclick="loadAccounts().then(renderAll)"><i class="ti ti-refresh"></i></button>
           <button class="add-btn" onclick="openAdd()"><i class="ti ti-plus" style="font-size:13px"></i> Add accounts</button>
         </div>
       </div>
@@ -226,175 +226,305 @@ tr:hover .ra{opacity:1}
 
 <div id="toasts"></div>
 
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
 <script>
-const S={get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}},del:(k)=>localStorage.removeItem(k)};
-let user=null,accounts=[],fStatus='all',sc='username',sd='asc',authMode='login';
+// ─── CONFIG — replace these two values ───────────────────────────
+const SUPABASE_URL     = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+// ─────────────────────────────────────────────────────────────────
 
-const WORKER_URL='https://empty-waterfall-dd1e.pepper-steak963.workers.dev';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const WORKER_URL = 'https://empty-waterfall-dd1e.pepper-steak963.workers.dev';
 
-async function fetchIGStats(username){
-  const res=await fetch(WORKER_URL+'?username='+encodeURIComponent(username));
-  const data=await res.json();
-  console.log('Response:',JSON.stringify(data).slice(0,400));
-  if(!res.ok) throw new Error('API error '+res.status);
+let user = null, accounts = [], fStatus = 'all', sc = 'username', sd = 'asc', authMode = 'login';
 
-  // HasData response shape
-  const p=data?.data||data;
-  if(!p||!p.username) throw new Error('User not found');
+// ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  // Check for existing session (works across browsers once logged in)
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    user = session.user;
+    await loadAccounts();
+    showApp();
+  }
 
-  // HasData returns latestIgtVideos for likes/comments
+  // Auto-sync when session changes (login, logout, token refresh)
+  sb.auth.onAuthStateChange(async (_event, session) => {
+    if (session) {
+      user = session.user;
+      await loadAccounts();
+      showApp();
+    } else {
+      user = null;
+      accounts = [];
+      document.getElementById('app').classList.remove('show');
+      document.getElementById('auth-page').style.display = 'flex';
+    }
+  });
+
+  document.getElementById('em').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+  document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+});
+
+// ── Auth mode toggle ──────────────────────────────────────────────
+function setMode(m) {
+  authMode = m;
+  document.getElementById('tab-login').classList.toggle('active', m === 'login');
+  document.getElementById('tab-register').classList.toggle('active', m === 'register');
+  document.getElementById('fn-wrap').style.display = m === 'register' ? 'block' : 'none';
+  document.getElementById('auth-btn').textContent = m === 'login' ? 'Sign in' : 'Create account';
+  document.getElementById('aerr').style.display = 'none';
+}
+
+// ── Sign in / Sign up ─────────────────────────────────────────────
+async function doAuth() {
+  const em = (document.getElementById('em').value || '').trim();
+  const pw = document.getElementById('pw').value || '';
+  const fn = (document.getElementById('fn').value || '').trim();
+  if (!em || !pw) { showAErr('Email and password required'); return; }
+  if (!em.includes('@')) { showAErr('Enter a valid email'); return; }
+  if (pw.length < 6) { showAErr('Password must be 6+ characters'); return; }
+
+  const btn = document.getElementById('auth-btn');
+  btn.textContent = 'Please wait…';
+  btn.disabled = true;
+
+  let error;
+  if (authMode === 'login') {
+    ({ error } = await sb.auth.signInWithPassword({ email: em, password: pw }));
+  } else {
+    ({ error } = await sb.auth.signUp({
+      email: em, password: pw,
+      options: { data: { full_name: fn || em.split('@')[0] } }
+    }));
+  }
+
+  btn.disabled = false;
+  btn.textContent = authMode === 'login' ? 'Sign in' : 'Create account';
+  if (error) { showAErr(error.message); return; }
+  // onAuthStateChange above handles showing the app
+}
+
+function showAErr(msg) { const el = document.getElementById('aerr'); el.textContent = msg; el.style.display = 'block'; }
+
+async function logout() { await sb.auth.signOut(); }
+
+function showApp() {
+  document.getElementById('auth-page').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  document.getElementById('tb-email').textContent = user.email;
+  renderAll();
+}
+
+// ── Load accounts from Supabase ───────────────────────────────────
+async function loadAccounts() {
+  const { data, error } = await sb.from('accounts')
+    .select('*')
+    .order('added_at', { ascending: false });
+  if (error) { toast('Failed to load accounts', 'err'); return; }
+  accounts = (data || []).map(r => ({
+    id: r.id,
+    username: r.username,
+    full_name: r.full_name,
+    status: r.status,
+    followers: r.followers,
+    views: r.views,
+    posts: r.posts,
+    reels: r.reels,
+    likes: r.likes,
+    comments: r.comments,
+    lastPost: r.last_post,
+    is_verified: r.is_verified,
+    is_private: r.is_private,
+    addedAt: r.added_at
+  }));
+}
+
+// ── Save one account to Supabase ──────────────────────────────────
+async function save(acct) {
+  const { error } = await sb.from('accounts').upsert({
+    id: acct.id,
+    user_id: user.id,
+    username: acct.username,
+    full_name: acct.full_name,
+    status: acct.status,
+    followers: acct.followers,
+    views: acct.views,
+    posts: acct.posts,
+    reels: acct.reels,
+    likes: acct.likes,
+    comments: acct.comments,
+    last_post: acct.lastPost,
+    is_verified: acct.is_verified,
+    is_private: acct.is_private
+  });
+  if (error) toast('Save failed: ' + error.message, 'err');
+}
+
+// ── Fetch IG stats from worker ────────────────────────────────────
+async function fetchIGStats(username) {
+  const res = await fetch(WORKER_URL + '?username=' + encodeURIComponent(username));
+  const data = await res.json();
+  console.log('Response:', JSON.stringify(data).slice(0, 400));
+  if (!res.ok) throw new Error('API error ' + res.status);
+  const p = data?.data || data;
+  if (!p || !p.username) throw new Error('User not found');
   const latestVideos = p?.latestIgtVideos || data?.latestIgtVideos || [];
   const timeline = p?.edge_owner_to_timeline_media?.edges || [];
   const all_posts = latestVideos.length > 0 ? latestVideos : timeline;
-
-  let avg_likes=0,avg_comments=0,avg_views=0,lastPost=null;
-  if(all_posts.length>0){
+  let avg_likes = 0, avg_comments = 0, avg_views = 0, lastPost = null;
+  if (all_posts.length > 0) {
     const items = all_posts.map(e => e.node || e);
-    avg_likes = Math.round(items.reduce((s,i) => s + (i.likesCount || i.edge_liked_by?.count || 0), 0) / items.length);
-    avg_comments = Math.round(items.reduce((s,i) => s + (i.commentsCount || i.edge_media_to_comment?.count || 0), 0) / items.length);
+    avg_likes = Math.round(items.reduce((s, i) => s + (i.likesCount || i.edge_liked_by?.count || 0), 0) / items.length);
+    avg_comments = Math.round(items.reduce((s, i) => s + (i.commentsCount || i.edge_media_to_comment?.count || 0), 0) / items.length);
     const ts = items[0]?.timestamp || items[0]?.taken_at_timestamp;
-    if(ts) lastPost = new Date(typeof ts==='number' ? ts*1000 : ts).toISOString();
+    if (ts) lastPost = new Date(typeof ts === 'number' ? ts * 1000 : ts).toISOString();
   }
-
-  // HikerAPI clips for view counts (play_count)
   const clips = data?.hikerClips || [];
-  if(Array.isArray(clips) && clips.length > 0){
-    avg_views = Math.round(clips.reduce((s,c) => s + (c.play_count || c.view_count || 0), 0) / clips.length);
-    if(!lastPost && clips[0]?.taken_at){
+  if (Array.isArray(clips) && clips.length > 0) {
+    avg_views = Math.round(clips.reduce((s, c) => s + (c.play_count || c.view_count || 0), 0) / clips.length);
+    if (!lastPost && clips[0]?.taken_at) {
       const ts = clips[0].taken_at_ts || clips[0].taken_at;
-      lastPost = new Date(typeof ts==='number' ? ts*1000 : ts).toISOString();
+      lastPost = new Date(typeof ts === 'number' ? ts * 1000 : ts).toISOString();
     }
   }
-
-  return{
-    username:p.username||username,
-    full_name:p.fullName||p.full_name||username,
-    followers:p.followersCount||p.followers||0,
-    following:p.followsCount||p.following||0,
-    posts:p.postsCount||p.mediaCount||0,
-    reels:p.igtvVideoCount||p.igtv_video_count||0,
-    avg_likes,avg_comments,avg_views,
-    is_private:p.isPrivate||false,
-    is_verified:p.verified||p.isVerified||false,
-    last_post:lastPost
+  return {
+    username: p.username || username,
+    full_name: p.fullName || p.full_name || username,
+    followers: p.followersCount || p.followers || 0,
+    posts: p.postsCount || p.mediaCount || 0,
+    reels: p.igtvVideoCount || p.igtv_video_count || 0,
+    avg_likes, avg_comments, avg_views,
+    is_private: p.isPrivate || false,
+    is_verified: p.verified || p.isVerified || false,
+    last_post: lastPost
   };
 }
 
-window.addEventListener('DOMContentLoaded',()=>{
-  user=S.get('igs_user');
-  if(user){showApp();accounts=S.get('igs_accts_'+user.id,[]);renderAll();}
-  document.getElementById('em').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
-  document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
-});
-
-function setMode(m){
-  authMode=m;
-  document.getElementById('tab-login').classList.toggle('active',m==='login');
-  document.getElementById('tab-register').classList.toggle('active',m==='register');
-  document.getElementById('fn-wrap').style.display=m==='register'?'block':'none';
-  document.getElementById('auth-btn').textContent=m==='login'?'Sign in':'Create account';
-  document.getElementById('aerr').style.display='none';
-}
-
-function doAuth(){
-  const em=(document.getElementById('em').value||'').trim();
-  const pw=document.getElementById('pw').value||'';
-  const fn=(document.getElementById('fn').value||'').trim();
-  if(!em||!pw){showAErr('Email and password required');return;}
-  if(!em.includes('@')){showAErr('Enter a valid email');return;}
-  if(pw.length<6){showAErr('Password must be 6+ characters');return;}
-  const users=S.get('igs_users',[]);
-  const found=users.find(u=>u.email===em);
-  if(authMode==='login'){
-    if(!found){showAErr('No account found. Click Create account.');return;}
-    if(btoa(pw)!==found.pwh){showAErr('Incorrect password');return;}
-    user=found;
-  }else{
-    if(found){showAErr('Email already exists. Sign in instead.');return;}
-    user={id:'u_'+Date.now(),email:em,name:fn||em.split('@')[0],pwh:btoa(pw)};
-    users.push(user);S.set('igs_users',users);
+// ── Add account ───────────────────────────────────────────────────
+async function addAcct() {
+  const un = document.getElementById('new-un').value.replace('@', '').trim().toLowerCase();
+  const merr = document.getElementById('merr');
+  merr.style.display = 'none';
+  if (!un) { merr.textContent = 'Enter a username'; merr.style.display = 'block'; return; }
+  if (accounts.find(a => a.username === un)) { merr.textContent = 'Already tracked'; merr.style.display = 'block'; return; }
+  const btn = document.getElementById('add-do');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2 spin"></i> Fetching…';
+  try {
+    const stats = await fetchIGStats(un);
+    const acct = {
+      id: 'a_' + Date.now(),
+      username: stats.username || un,
+      full_name: stats.full_name || un,
+      status: 'none',
+      followers: stats.followers || 0,
+      views: stats.avg_views || 0,
+      posts: stats.posts || 0,
+      reels: stats.reels || 0,
+      likes: stats.avg_likes || 0,
+      comments: stats.avg_comments || 0,
+      lastPost: stats.last_post || null,
+      addedAt: new Date().toISOString(),
+      is_verified: stats.is_verified || false,
+      is_private: stats.is_private || false
+    };
+    await save(acct);
+    accounts.unshift(acct);
+    renderAll();
+    closeAdd();
+    toast('@' + un + ' added!', 'ok');
+  } catch (err) {
+    merr.textContent = 'Could not fetch @' + un + ': ' + (err.message || 'error');
+    merr.style.display = 'block';
   }
-  S.set('igs_user',user);
-  accounts=S.get('igs_accts_'+user.id,[]);
-  showApp();renderAll();
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-plus" style="font-size:13px"></i> Add account';
 }
 
-function showAErr(msg){const el=document.getElementById('aerr');el.textContent=msg;el.style.display='block';}
-
-function logout(){S.del('igs_user');user=null;accounts=[];document.getElementById('app').classList.remove('show');document.getElementById('auth-page').style.display='flex';document.getElementById('em').value='';document.getElementById('pw').value='';document.getElementById('aerr').style.display='none';}
-
-function showApp(){document.getElementById('auth-page').style.display='none';document.getElementById('app').classList.add('show');document.getElementById('tb-email').textContent=user.email;}
-
-function save(){S.set('igs_accts_'+user.id,accounts);}
-
-function addAcct(){
-  const un=document.getElementById('new-un').value.replace('@','').trim().toLowerCase();
-  const merr=document.getElementById('merr');
-  merr.style.display='none';
-  if(!un){merr.textContent='Enter a username';merr.style.display='block';return;}
-  if(accounts.find(a=>a.username===un)){merr.textContent='Already tracked';merr.style.display='block';return;}
-  const btn=document.getElementById('add-do');
-  btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2 spin"></i> Fetching…';
-  fetchIGStats(un).then(stats=>{
-    const acct={id:'a_'+Date.now(),username:stats.username||un,full_name:stats.full_name||un,status:'none',followers:stats.followers||0,views:stats.avg_views||0,posts:stats.posts||0,reels:stats.reels||0,likes:stats.avg_likes||0,comments:stats.avg_comments||0,d24:0,lastPost:stats.last_post||null,addedAt:new Date().toISOString(),is_verified:stats.is_verified||false,is_private:stats.is_private||false};
-    accounts.unshift(acct);save();renderAll();closeAdd();toast('@'+un+' added!','ok');
-  }).catch(err=>{merr.textContent='Could not fetch @'+un+': '+(err.message||'error');merr.style.display='block';
-  }).finally(()=>{btn.disabled=false;btn.innerHTML='<i class="ti ti-plus" style="font-size:13px"></i> Add account';});
+// ── Delete account ────────────────────────────────────────────────
+async function delAcct(id, un) {
+  if (!confirm('Remove @' + un + '?')) return;
+  const { error } = await sb.from('accounts').delete().eq('id', id);
+  if (error) { toast('Delete failed', 'err'); return; }
+  accounts = accounts.filter(a => a.id !== id);
+  renderAll();
+  toast('@' + un + ' removed');
 }
 
-function delAcct(id,un){if(!confirm('Remove @'+un+'?'))return;accounts=accounts.filter(a=>a.id!==id);save();renderAll();toast('@'+un+' removed');}
-function chStatus(id,status){const a=accounts.find(a=>a.id===id);if(a){a.status=status;save();renderAll();}}
-
-function fmt(n){if(n==null)return'—';const abs=Math.abs(n);if(abs>=1e6)return(n/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(abs>=1e3)return(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';return n.toString();}
-function timeAgo(iso){if(!iso)return'<span class="mu">—</span>';const s=Math.floor((Date.now()-new Date(iso))/1000);if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
-function badge(st){const m={good:['bg-good','Good'],bad:['bg-bad','Bad'],watching:['bg-watch','Watching'],none:['bg-none','No status']};const[c,l]=m[st]||m.none;return`<span class="badge ${c}"><span class="bdot"></span>${l}</span>`;}
-
-function getRows(){
-  const q=(document.getElementById('q')?.value||'').toLowerCase();
-  return accounts.filter(a=>{const mq=!q||a.username.includes(q)||(a.full_name||'').toLowerCase().includes(q);return mq&&(fStatus==='all'||a.status===fStatus);}).sort((a,b)=>{let va=a[sc]??0,vb=b[sc]??0;if(typeof va==='string')va=va.toLowerCase();if(typeof vb==='string')vb=vb.toLowerCase();return sd==='asc'?(va>vb?1:-1):(va<vb?1:-1);});
+// ── Change status ─────────────────────────────────────────────────
+async function chStatus(id, status) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  a.status = status;
+  await save(a);
+  renderAll();
 }
 
-function draw(){
-  const rows=getRows();
-  const tb=document.getElementById('tbody');
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="18"><div class="empty"><i class="ti ti-${accounts.length?'filter-off':'user-plus'}"></i><p>${accounts.length?'No accounts match':'No accounts yet — click Add accounts'}</p></div></td></tr>`;return;}
-  tb.innerHTML=rows.map(a=>`<tr>
+// ── Helpers ───────────────────────────────────────────────────────
+function fmt(n) { if (n == null) return '—'; const abs = Math.abs(n); if (abs >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'; if (abs >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K'; return n.toString(); }
+function timeAgo(iso) { if (!iso) return '<span class="mu">—</span>'; const s = Math.floor((Date.now() - new Date(iso)) / 1000); if (s < 3600) return Math.floor(s / 60) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'; }
+function badge(st) { const m = { good: ['bg-good', 'Good'], bad: ['bg-bad', 'Bad'], watching: ['bg-watch', 'Watching'], none: ['bg-none', 'No status'] }; const [c, l] = m[st] || m.none; return `<span class="badge ${c}"><span class="bdot"></span>${l}</span>`; }
+
+function getRows() {
+  const q = (document.getElementById('q')?.value || '').toLowerCase();
+  return accounts.filter(a => {
+    const mq = !q || a.username.includes(q) || (a.full_name || '').toLowerCase().includes(q);
+    return mq && (fStatus === 'all' || a.status === fStatus);
+  }).sort((a, b) => {
+    let va = a[sc] ?? 0, vb = b[sc] ?? 0;
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return sd === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+}
+
+function draw() {
+  const rows = getRows();
+  const tb = document.getElementById('tbody');
+  if (!rows.length) {
+    tb.innerHTML = `<tr><td colspan="18"><div class="empty"><i class="ti ti-${accounts.length ? 'filter-off' : 'user-plus'}"></i><p>${accounts.length ? 'No accounts match' : 'No accounts yet — click Add accounts'}</p></div></td></tr>`;
+    return;
+  }
+  tb.innerHTML = rows.map(a => `<tr>
     <td><input type="checkbox"></td>
-    <td><div class="aw"><div class="av">${(a.username||'').slice(0,2).toUpperCase()}</div><div><div class="ahandle">@${a.username}${a.is_verified?'<i class="ti ti-circle-check-filled" style="color:var(--blue);font-size:11px;margin-left:3px"></i>':''}</div>${a.full_name&&a.full_name!==a.username?`<div class="aname">${a.full_name}</div>`:''}</div></div></td>
-    <td><select class="status-sel" onchange="chStatus('${a.id}',this.value)" style="margin-right:4px">${['none','good','watching','bad'].map(s=>`<option value="${s}"${a.status===s?' selected':''}>${{none:'No status',good:'Good',watching:'Watching',bad:'Bad'}[s]}</option>`).join('')}</select>${badge(a.status)}</td>
+    <td><div class="aw"><div class="av">${(a.username || '').slice(0, 2).toUpperCase()}</div><div><div class="ahandle">@${a.username}${a.is_verified ? '<i class="ti ti-circle-check-filled" style="color:var(--blue);font-size:11px;margin-left:3px"></i>' : ''}</div>${a.full_name && a.full_name !== a.username ? `<div class="aname">${a.full_name}</div>` : ''}</div></div></td>
+    <td><select class="status-sel" onchange="chStatus('${a.id}',this.value)" style="margin-right:4px">${['none', 'good', 'watching', 'bad'].map(s => `<option value="${s}"${a.status === s ? ' selected' : ''}>${{ none: 'No status', good: 'Good', watching: 'Watching', bad: 'Bad' }[s]}</option>`).join('')}</select>${badge(a.status)}</td>
     <td class="mu">—</td><td class="mu">—</td>
-    <td class="num">${a.followers?fmt(a.followers):'<span class="mu">—</span>'}</td>
+    <td class="num">${a.followers ? fmt(a.followers) : '<span class="mu">—</span>'}</td>
     <td class="mu">—</td>
-    <td class="num">${a.views?fmt(a.views):'<span class="mu">—</span>'}</td>
+    <td class="num">${a.views ? fmt(a.views) : '<span class="mu">—</span>'}</td>
     <td class="mu">—</td><td class="mu">—</td><td class="mu">—</td>
-    <td class="num">${a.posts??0}</td><td class="num">${a.reels??0}</td>
-    <td class="num">${a.likes?fmt(a.likes):'0'}</td>
-    <td class="num">${a.comments?fmt(a.comments):'0'}</td>
+    <td class="num">${a.posts ?? 0}</td><td class="num">${a.reels ?? 0}</td>
+    <td class="num">${a.likes ? fmt(a.likes) : '0'}</td>
+    <td class="num">${a.comments ? fmt(a.comments) : '0'}</td>
     <td style="font-size:11px">${timeAgo(a.lastPost)}</td>
     <td class="mu" style="font-size:11px">No media</td>
     <td><div class="ra"><button class="rb" onclick="delAcct('${a.id}','${a.username}')"><i class="ti ti-trash"></i></button></div></td>
   </tr>`).join('');
 }
 
-function updateMeta(){
-  const sum=k=>accounts.reduce((s,a)=>s+(Number(a[k])||0),0);
-  ['followers','views','posts','reels','likes','comments'].forEach((k,i)=>{document.getElementById('m'+i).textContent=fmt(sum(k));});
-  document.getElementById('m6').textContent=accounts.length;
-  document.getElementById('tb-badge').textContent='ALL ACCOUNTS '+accounts.length;
-  document.getElementById('sb-all').textContent=accounts.length;
-  document.getElementById('sb-no').textContent=accounts.length;
-  const c={all:accounts.length,none:0,good:0,watching:0,bad:0};
-  accounts.forEach(a=>{if(c[a.status]!==undefined)c[a.status]++;});
-  ['pa','pn','pg','pw2','pb','pav'].forEach((id,i)=>{const k=['all','none','good','watching','bad','all'][i];document.getElementById(id).textContent=c[k];});
+function updateMeta() {
+  const sum = k => accounts.reduce((s, a) => s + (Number(a[k]) || 0), 0);
+  ['followers', 'views', 'posts', 'reels', 'likes', 'comments'].forEach((k, i) => { document.getElementById('m' + i).textContent = fmt(sum(k)); });
+  document.getElementById('m6').textContent = accounts.length;
+  document.getElementById('tb-badge').textContent = 'ALL ACCOUNTS ' + accounts.length;
+  document.getElementById('sb-all').textContent = accounts.length;
+  document.getElementById('sb-no').textContent = accounts.length;
+  const c = { all: accounts.length, none: 0, good: 0, watching: 0, bad: 0 };
+  accounts.forEach(a => { if (c[a.status] !== undefined) c[a.status]++; });
+  ['pa', 'pn', 'pg', 'pw2', 'pb', 'pav'].forEach((id, i) => { const k = ['all', 'none', 'good', 'watching', 'bad', 'all'][i]; document.getElementById(id).textContent = c[k]; });
 }
 
-function renderAll(){updateMeta();draw();}
-function setF(f){fStatus=f;document.querySelectorAll('.pill[data-f]').forEach(p=>p.classList.toggle('on',p.dataset.f===f));draw();}
-function srt(col){if(sc===col)sd=sd==='asc'?'desc':'asc';else{sc=col;sd='desc';}draw();}
-function toggleAll(c){document.querySelectorAll('#tbody input[type=checkbox]').forEach(x=>x.checked=c);}
-function openAdd(){document.getElementById('add-modal').style.display='flex';document.getElementById('new-un').value='';document.getElementById('merr').style.display='none';const btn=document.getElementById('add-do');btn.disabled=false;btn.innerHTML='<i class="ti ti-plus" style="font-size:13px"></i> Add account';setTimeout(()=>document.getElementById('new-un').focus(),60);}
-function closeAdd(){document.getElementById('add-modal').style.display='none';}
-function toast(msg,type=''){const el=document.createElement('div');el.className='toast'+(type?' '+type:'');el.textContent=msg;document.getElementById('toasts').appendChild(el);setTimeout(()=>el.remove(),3000);}
+function renderAll() { updateMeta(); draw(); }
+function setF(f) { fStatus = f; document.querySelectorAll('.pill[data-f]').forEach(p => p.classList.toggle('on', p.dataset.f === f)); draw(); }
+function srt(col) { if (sc === col) sd = sd === 'asc' ? 'desc' : 'asc'; else { sc = col; sd = 'desc'; } draw(); }
+function toggleAll(c) { document.querySelectorAll('#tbody input[type=checkbox]').forEach(x => x.checked = c); }
+function openAdd() { document.getElementById('add-modal').style.display = 'flex'; document.getElementById('new-un').value = ''; document.getElementById('merr').style.display = 'none'; const btn = document.getElementById('add-do'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-plus" style="font-size:13px"></i> Add account'; setTimeout(() => document.getElementById('new-un').focus(), 60); }
+function closeAdd() { document.getElementById('add-modal').style.display = 'none'; }
+function toast(msg, type = '') { const el = document.createElement('div'); el.className = 'toast' + (type ? ' ' + type : ''); el.textContent = msg; document.getElementById('toasts').appendChild(el); setTimeout(() => el.remove(), 3000); }
 </script>
 </body>
 </html>
