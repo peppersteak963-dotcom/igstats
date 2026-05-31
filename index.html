@@ -242,18 +242,20 @@ async function fetchIGStats(username){
   const p=data?.data||data;
   if(!p||!p.username) throw new Error('User not found');
 
-  // Get posts array for avg stats
-  const posts_arr=p.latestIgtVideos||p.posts||p.recentPosts||[];
-  const timeline=data?.json?.edge_owner_to_timeline_media?.edges||[];
-  const all_posts=[...timeline];
-  
+  // Get posts from HasData response - check all possible locations
+  const timeline = data?.json?.edge_owner_to_timeline_media?.edges || 
+                   p?.edge_owner_to_timeline_media?.edges || [];
+  const latestVideos = data?.latestIgtVideos || p?.latestIgtVideos || [];
+  const all_posts = timeline.length > 0 ? timeline : latestVideos;
+
   let avg_likes=0,avg_comments=0,avg_views=0,lastPost=null;
   if(all_posts.length>0){
     const items=all_posts.map(e=>e.node||e);
+    console.log('First post sample:', JSON.stringify(items[0]).slice(0,200));
     avg_likes=Math.round(items.reduce((s,i)=>s+(i.edge_liked_by?.count||i.likesCount||i.like_count||0),0)/items.length);
     avg_comments=Math.round(items.reduce((s,i)=>s+(i.edge_media_to_comment?.count||i.commentsCount||i.comment_count||0),0)/items.length);
-    avg_views=Math.round(items.reduce((s,i)=>s+(i.video_view_count||i.viewCount||i.play_count||0),0)/items.length);
-    const ts=items[0]?.taken_at_timestamp||items[0]?.timestamp;
+    avg_views=Math.round(items.reduce((s,i)=>s+(i.video_view_count||i.viewCount||i.play_count||i.view_count||0),0)/items.length);
+    const ts=items[0]?.taken_at_timestamp||items[0]?.timestamp||items[0]?.taken_at;
     if(ts) lastPost=new Date(typeof ts==='number'?ts*1000:ts).toISOString();
   }
 
