@@ -404,6 +404,50 @@ function showApp(){
 // ── ACCOUNTS ─────────────────────────────────────────────────────
 function save(){ S.set('igs_accts_'+user.id, accounts); }
 
+// ── REAL INSTAGRAM FETCH ─────────────────────────────────────────
+const RAPIDAPI_KEY = 'e0eee6abacmshb6d74a3063c8677p104f29jsn7ed028abf06d';
+
+async function fetchIGStats(username) {
+  const res = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/ig_user_info.php?username_or_url=https://www.instagram.com/'+username+'/', {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
+      'x-rapidapi-key': RAPIDAPI_KEY
+    }
+  });
+  if(!res.ok) throw new Error('API error: '+res.status);
+  const data = await res.json();
+  const user = data?.data?.user || data?.user || data;
+  if(!user) throw new Error('User not found');
+
+  // Calculate averages from recent media
+  const media = user.edge_owner_to_timeline_media?.edges || [];
+  let avg_likes=0, avg_comments=0, avg_views=0;
+  if(media.length>0){
+    avg_likes = Math.round(media.reduce((s,e)=>s+(e.node?.edge_liked_by?.count||0),0)/media.length);
+    avg_comments = Math.round(media.reduce((s,e)=>s+(e.node?.edge_media_to_comment?.count||0),0)/media.length);
+    avg_views = Math.round(media.reduce((s,e)=>s+(e.node?.video_view_count||0),0)/media.length);
+  }
+  const lastPost = media[0]?.node?.taken_at_timestamp
+    ? new Date(media[0].node.taken_at_timestamp*1000).toISOString()
+    : null;
+
+  return {
+    username: user.username||username,
+    full_name: user.full_name||username,
+    followers: user.edge_followed_by?.count||user.follower_count||0,
+    following: user.edge_follow?.count||user.following_count||0,
+    posts: user.edge_owner_to_timeline_media?.count||user.media_count||0,
+    reels: 0,
+    avg_likes,
+    avg_comments,
+    avg_views,
+    is_private: user.is_private||false,
+    is_verified: user.is_verified||false,
+    last_post: lastPost,
+  };
+}
+
 function addAcct(){
   const un=document.getElementById('new-un').value.replace('@','').trim().toLowerCase();
   const merr=document.getElementById('merr');
@@ -412,32 +456,38 @@ function addAcct(){
   if(accounts.find(a=>a.username===un)){ merr.textContent='@'+un+' is already tracked'; merr.style.display='block'; return; }
 
   const btn=document.getElementById('add-do');
-  btn.disabled=true; btn.innerHTML='<i class="ti ti-loader-2 spin"></i> Adding…';
+  btn.disabled=true; btn.innerHTML='<i class="ti ti-loader-2 spin"></i> Fetching stats…';
 
-  // Simulate a fetch delay then add with mock stats
-  setTimeout(()=>{
+  fetchIGStats(un).then(stats=>{
     const acct={
       id:'a_'+Date.now(),
-      username:un,
-      full_name: un.charAt(0).toUpperCase()+un.slice(1).replace(/[._]/g,' '),
+      username:stats.username||un,
+      full_name: stats.full_name||un,
       status:'none',
-      followers: Math.floor(Math.random()*200000+500),
-      views: Math.floor(Math.random()*5000000),
-      posts: Math.floor(Math.random()*300),
-      reels: Math.floor(Math.random()*80),
-      likes: Math.floor(Math.random()*50000),
-      comments: Math.floor(Math.random()*3000),
-      d24: (Math.random()>.5?1:-1)*Math.floor(Math.random()*500),
-      lastPost: new Date(Date.now()-Math.random()*30*86400000).toISOString(),
-      addedAt: new Date().toISOString()
+      followers: stats.followers||0,
+      views: stats.avg_views||0,
+      posts: stats.posts||0,
+      reels: stats.reels||0,
+      likes: stats.avg_likes||0,
+      comments: stats.avg_comments||0,
+      d24: 0,
+      lastPost: stats.last_post||null,
+      addedAt: new Date().toISOString(),
+      is_verified: stats.is_verified||false,
+      is_private: stats.is_private||false,
     };
     accounts.unshift(acct);
     save();
     renderAll();
     closeAdd();
     toast('@'+un+' added!','ok');
+  }).catch(err=>{
+    const merr=document.getElementById('merr');
+    merr.textContent='Could not fetch @'+un+': '+(err.message||'not found');
+    merr.style.display='block';
+  }).finally(()=>{
     btn.disabled=false; btn.innerHTML='<i class="ti ti-plus" style="font-size:13px"></i> Add account';
-  }, 900);
+  });
 }
 
 function delAcct(id,un){
