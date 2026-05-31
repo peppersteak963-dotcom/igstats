@@ -230,33 +230,45 @@ tr:hover .ra{opacity:1}
 const S={get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}},del:(k)=>localStorage.removeItem(k)};
 let user=null,accounts=[],fStatus='all',sc='username',sd='asc',authMode='login';
 
-const RAPIDAPI_KEY='986a5c4f98mshcf11909d42f41e2p1c6120jsn1648f3cf84d5';
-const RAPIDAPI_HOST='instagram-scraper-stable-api.p.rapidapi.com';
+const HASDATA_KEY='d417e489-f56b-45ff-8b7e-aaa623a47477';
 
 async function fetchIGStats(username){
-  const h={'Content-Type':'application/json','x-rapidapi-host':RAPIDAPI_HOST,'x-rapidapi-key':RAPIDAPI_KEY};
-  const uRes=await fetch('https://'+RAPIDAPI_HOST+'/ig_get_fb_profile_hover.php?username_or_url='+encodeURIComponent(username),{method:'GET',headers:h});
-  const uData=await uRes.json();
-  console.log('UserInfo:',JSON.stringify(uData).slice(0,300));
-  if(!uRes.ok) throw new Error('API error '+uRes.status);
-  const u=uData?.user_data||uData?.data?.user||uData?.user||uData;
-  if(!u) throw new Error('User not found');
-  const followers=u.follower_count??u.edge_followed_by?.count??0;
-  const posts=u.media_count??u.edge_owner_to_timeline_media?.count??0;
-  let avg_likes=0,avg_comments=0,lastPost=null;
-  try{
-    const pRes=await fetch('https://'+RAPIDAPI_HOST+'/get_ig_user_posts.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','x-rapidapi-host':RAPIDAPI_HOST,'x-rapidapi-key':RAPIDAPI_KEY},body:'username_or_url='+encodeURIComponent('https://www.instagram.com/'+username+'/')+'&amount=12'});
-    const pData=await pRes.json();
-    console.log('Posts:',JSON.stringify(pData).slice(0,200));
-    const items=pData?.posts||pData?.data?.items||pData?.items||[];
-    if(Array.isArray(items)&&items.length>0){
-      avg_likes=Math.round(items.reduce((s,p)=>s+(p.node?.like_count||p.like_count||0),0)/items.length);
-      avg_comments=Math.round(items.reduce((s,p)=>s+(p.node?.comment_count||p.comment_count||0),0)/items.length);
-      const ts=items[0]?.node?.taken_at||items[0]?.taken_at;
-      if(ts) lastPost=new Date(ts*1000).toISOString();
-    }
-  }catch(e){console.log('Posts failed:',e.message);}
-  return{username:u.username||username,full_name:u.full_name||username,followers,posts,reels:0,avg_likes,avg_comments,avg_views:0,is_private:u.is_private||false,is_verified:u.is_verified||false,last_post:lastPost};
+  // HasData Instagram Profile API - 1 call gets everything
+  const res=await fetch('https://api.hasdata.com/scrape/instagram/profile?handle='+encodeURIComponent(username),{
+    method:'GET',
+    headers:{'Content-Type':'application/json','x-api-key':HASDATA_KEY}
+  });
+  const data=await res.json();
+  console.log('HasData response:',JSON.stringify(data).slice(0,400));
+  if(!res.ok) throw new Error('API error '+res.status+': '+(data?.message||''));
+  
+  const p=data?.profile||data?.data||data;
+  if(!p||!p.username) throw new Error('User not found');
+  
+  // Extract post stats from recent posts
+  const posts_arr=p.posts||p.recentPosts||p.edge_owner_to_timeline_media?.edges||[];
+  let avg_likes=0,avg_comments=0,avg_views=0,lastPost=null;
+  if(Array.isArray(posts_arr)&&posts_arr.length>0){
+    const items=posts_arr.map(e=>e.node||e);
+    avg_likes=Math.round(items.reduce((s,i)=>s+(i.like_count||i.likeCount||i.edge_liked_by?.count||0),0)/items.length);
+    avg_comments=Math.round(items.reduce((s,i)=>s+(i.comment_count||i.commentCount||i.edge_media_to_comment?.count||0),0)/items.length);
+    avg_views=Math.round(items.reduce((s,i)=>s+(i.view_count||i.viewCount||i.video_view_count||i.play_count||0),0)/items.length);
+    const ts=items[0]?.taken_at||items[0]?.takenAt||items[0]?.timestamp;
+    if(ts) lastPost=new Date(typeof ts==='number'?ts*1000:ts).toISOString();
+  }
+  
+  return{
+    username:p.username||username,
+    full_name:p.fullName||p.full_name||username,
+    followers:p.followersCount||p.followers||p.follower_count||0,
+    following:p.followingCount||p.following||p.following_count||0,
+    posts:p.postsCount||p.posts_count||p.mediaCount||p.media_count||0,
+    reels:p.reelsCount||p.reels_count||0,
+    avg_likes,avg_comments,avg_views,
+    is_private:p.isPrivate||p.is_private||false,
+    is_verified:p.isVerified||p.is_verified||false,
+    last_post:lastPost
+  };
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
