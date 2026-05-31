@@ -334,6 +334,56 @@ const S = {
 // ── STATE ────────────────────────────────────────────────────────
 let user=null, accounts=[], fStatus='all', sc='username', sd='asc', authMode='login';
 
+// ── REAL INSTAGRAM FETCH ─────────────────────────────────────────
+const RAPIDAPI_KEY = '986a5c4f98mshcf11909d42f41e2p1c6120jsn1648f3cf84d5';
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
+
+async function fetchIGStats(username) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-rapidapi-host': RAPIDAPI_HOST,
+    'x-rapidapi-key': RAPIDAPI_KEY
+  };
+
+  const uRes = await fetch('https://' + RAPIDAPI_HOST + '/ig_get_fb_profile_hover.php?username_or_url=' + encodeURIComponent(username), {
+    method: 'GET', headers
+  });
+  const uData = await uRes.json();
+  console.log('UserInfo:', JSON.stringify(uData).slice(0, 300));
+  if(!uRes.ok) throw new Error('API error ' + uRes.status);
+
+  const user = uData?.user_data || uData?.data?.user || uData?.user || uData;
+  if(!user) throw new Error('User not found');
+
+  const followers = user.follower_count ?? user.edge_followed_by?.count ?? 0;
+  const following = user.following_count ?? user.edge_follow?.count ?? 0;
+  const posts = user.media_count ?? user.edge_owner_to_timeline_media?.count ?? 0;
+
+  let avg_likes=0, avg_comments=0, avg_views=0, lastPost=null;
+
+  try {
+    const postsRes = await fetch('https://' + RAPIDAPI_HOST + '/get_ig_user_posts.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'x-rapidapi-host': RAPIDAPI_HOST, 'x-rapidapi-key': RAPIDAPI_KEY },
+      body: 'username_or_url=' + encodeURIComponent('https://www.instagram.com/' + username + '/') + '&amount=12'
+    });
+    const postsData = await postsRes.json();
+    console.log('Posts:', JSON.stringify(postsData).slice(0,200));
+    const items = postsData?.posts || postsData?.data?.items || postsData?.items || [];
+    if(Array.isArray(items) && items.length > 0){
+      avg_likes = Math.round(items.reduce((s,p)=>s+(p.node?.like_count||p.like_count||0),0)/items.length);
+      avg_comments = Math.round(items.reduce((s,p)=>s+(p.node?.comment_count||p.comment_count||0),0)/items.length);
+      const ts = items[0]?.node?.taken_at||items[0]?.taken_at||items[0]?.taken_at_timestamp;
+      if(ts) lastPost = new Date(ts*1000).toISOString();
+    }
+  } catch(e) { console.log('Posts failed:', e.message); }
+
+  return { username: user.username||username, full_name: user.full_name||username,
+    followers, following, posts, reels: 0,
+    avg_likes, avg_comments, avg_views,
+    is_private: user.is_private||false, is_verified: user.is_verified||false, last_post: lastPost };
+}
+
 // ── BOOT ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
   user = S.get('igs_user');
@@ -360,16 +410,12 @@ function doAuth(){
     if(!em||!pw){ showAErr('Email and password are required'); return; }
     if(!em.includes('@')){ showAErr('Enter a valid email address'); return; }
     if(pw.length<6){ showAErr('Password must be at least 6 characters'); return; }
-
     const users=S.get('igs_users',[]);
-
     const found=users.find(u=>u.email===em);
     if(found){
-      // Login
       if(btoa(pw)!==found.pwh){ showAErr('Incorrect password'); return; }
       user=found;
     } else {
-      // Auto-register new user
       user={ id:'u_'+Date.now(), email:em, name:fn||em.split('@')[0], pwh:btoa(pw) };
       users.push(user);
       S.set('igs_users',users);
@@ -378,10 +424,7 @@ function doAuth(){
     accounts=S.get('igs_accts_'+user.id,[]);
     showApp();
     renderAll();
-  } catch(e) {
-    showAErr('Something went wrong. Please try again.');
-    console.error(e);
-  }
+  } catch(e) { showAErr('Something went wrong: '+e.message); }
 }
 function showAErr(msg){ const el=document.getElementById('aerr'); el.textContent=msg; el.style.display='block'; }
 
@@ -403,183 +446,6 @@ function showApp(){
 // ── ACCOUNTS ─────────────────────────────────────────────────────
 function save(){ S.set('igs_accts_'+user.id, accounts); }
 
-// ── REAL INSTAGRAM FETCH ─────────────────────────────────────────
-const RAPIDAPI_KEY = '986a5c4f98mshcf11909d42f41e2p1c6120jsn1648f3cf84d5';
-const RAPIDAPI_HOST2 = 'instagram-scraper2.p.rapidapi.com';
-
-async function fetchIGStats(username) {
-  const headers2 = {
-    'Content-Type': 'application/json',
-    'x-rapidapi-host': RAPIDAPI_HOST2,
-    'x-rapidapi-key': RAPIDAPI_KEY
-  };
-
-  // Step 1: Get user info (followers, posts, verified, etc.)
-  const uRes = await fetch('https://' + RAPIDAPI_HOST2 + '/user_info?user_name=' + encodeURIComponent(username), {
-    method: 'GET', headers: headers2
-  });
-  const uData = await uRes.json();
-  console.log('UserInfo:', JSON.stringify(uData).slice(0, 400));
-
-  if(!uRes.ok) throw new Error('User not found: ' + (uData?.message || uRes.status));
-
-  const user = uData?.user || uData?.data?.user || uData?.data || uData;
-  if(!user || (!user.pk && !user.follower_count && !user.edge_followed_by)) 
-    throw new Error('User not found or private');
-
-  const userId = user.pk || user.id;
-  const followers = user.follower_count || user.edge_followed_by?.count || 0;
-  const following = user.following_count || user.edge_follow?.count || 0;
-  const posts = user.media_count || user.edge_owner_to_timeline_media?.count || 0;
-  const full_name = user.full_name || username;
-  const is_private = user.is_private || false;
-  const is_verified = user.is_verified || false;
-
-  let avg_likes = 0, avg_comments = 0, avg_views = 0, reels_count = 0, lastPost = null;
-
-  // Step 2: Get recent posts for likes & comments
-  try {
-    const postsRes = await fetch('https://' + RAPIDAPI_HOST2 + '/user_medias?user_id=' + userId + '&batch_size=12', {
-      method: 'GET', headers: headers2
-    });
-    const postsData = await postsRes.json();
-    console.log('Posts:', JSON.stringify(postsData).slice(0, 300));
-    const items = postsData?.medias || postsData?.items || postsData?.data || [];
-    if(Array.isArray(items) && items.length > 0) {
-      avg_likes = Math.round(items.reduce((s,p) => s + (p.like_count || p.likes || 0), 0) / items.length);
-      avg_comments = Math.round(items.reduce((s,p) => s + (p.comment_count || p.comments || 0), 0) / items.length);
-      const ts = items[0]?.taken_at || items[0]?.timestamp;
-      if(ts) lastPost = new Date(ts * 1000).toISOString();
-    }
-  } catch(e) { console.log('Posts failed:', e.message); }
-
-  // Step 3: Get reels for views & reels count
-  try {
-    const reelsRes = await fetch('https://' + RAPIDAPI_HOST2 + '/user_reels?user_id=' + userId, {
-      method: 'GET', headers: headers2
-    });
-    const reelsData = await reelsRes.json();
-    console.log('Reels:', JSON.stringify(reelsData).slice(0, 300));
-    const reels = reelsData?.reels || reelsData?.items || reelsData?.data || [];
-    if(Array.isArray(reels) && reels.length > 0) {
-      reels_count = reels.length;
-      avg_views = Math.round(reels.reduce((s,r) => {
-        const m = r.media || r;
-        return s + (m.play_count || m.view_count || m.video_view_count || 0);
-      }, 0) / reels.length);
-    }
-  } catch(e) { console.log('Reels failed:', e.message); }
-
-  return { username, full_name, followers, following, posts, reels: reels_count,
-    avg_likes, avg_comments, avg_views, is_private, is_verified, last_post: lastPost };
-}
-
-// ── ACCOUNTS ─────────────────────────────────────────────────────
-function save(){ S.set('igs_accts_'+user.id, accounts); }
-
-// ── REAL INSTAGRAM FETCH ─────────────────────────────────────────
-
-async function fetchIGStats(username) {
-  const url = 'https://instagram-scraper-stable-api.p.rapidapi.com/ig_get_fb_profile_hover.php?username_or_url=' + encodeURIComponent(username);
-  
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
-      'x-rapidapi-key': RAPIDAPI_KEY
-    }
-  });
-  
-  const data = await res.json();
-  console.log('API response:', JSON.stringify(data).slice(0, 500));
-  
-  if(!res.ok) throw new Error('API error ' + res.status);
-  
-  // This API returns data in user_data key
-  const user = data?.user_data || data?.data?.user || data?.user || data;
-  if(!user) throw new Error('User not found');
-
-  const followers = user.follower_count ?? user.edge_followed_by?.count ?? 0;
-  const following = user.following_count ?? user.edge_follow?.count ?? 0;
-  const posts_count = user.media_count ?? user.edge_owner_to_timeline_media?.count ?? 0;
-
-  // Get posts for avg stats - call user posts endpoint
-  let avg_likes=0, avg_comments=0, avg_views=0, lastPost=null;
-  try {
-    const postsRes = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/get_ig_user_posts.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
-        'x-rapidapi-key': RAPIDAPI_KEY
-      },
-      body: 'username_or_url=' + encodeURIComponent('https://www.instagram.com/' + username + '/') + '&amount=12'
-    });
-    const postsData = await postsRes.json();
-    console.log('Posts response:', JSON.stringify(postsData).slice(0,300));
-    const items = postsData?.posts || postsData?.data?.items || postsData?.items || postsData?.data || [];
-    if(Array.isArray(items) && items.length > 0){
-      avg_likes = Math.round(items.reduce((s,p)=>s+(p.node?.like_count||p.like_count||p.edge_liked_by?.count||0),0)/items.length);
-      avg_comments = Math.round(items.reduce((s,p)=>s+(p.node?.comment_count||p.comment_count||p.edge_media_to_comment?.count||0),0)/items.length);
-      avg_views = Math.round(items.reduce((s,p)=>s+(p.node?.view_count||p.node?.video_view_count||p.view_count||p.video_view_count||p.play_count||0),0)/items.length);
-      const ts = items[0]?.node?.taken_at||items[0]?.taken_at || items[0]?.taken_at_timestamp;
-      if(ts) lastPost = new Date(ts * 1000).toISOString();
-    }
-  } catch(e) { console.log('Posts fetch failed:', e.message); }
-
-  // Fetch reels for view counts using instagram-scraper2 API
-  try {
-    // First get user_id from username
-    const uinfoRes = await fetch('https://instagram-scraper2.p.rapidapi.com/user_info?user_name=' + encodeURIComponent(username), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-rapidapi-host': 'instagram-scraper2.p.rapidapi.com',
-        'x-rapidapi-key': RAPIDAPI_KEY
-      }
-    });
-    const uinfoData = await uinfoRes.json();
-    console.log('UserInfo2 response:', JSON.stringify(uinfoData).slice(0,200));
-    const userId = uinfoData?.user?.pk || uinfoData?.pk || uinfoData?.id || uinfoData?.data?.pk;
-    
-    if(userId) {
-      const reelsRes = await fetch('https://instagram-scraper2.p.rapidapi.com/user_reels?user_id=' + userId, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-rapidapi-host': 'instagram-scraper2.p.rapidapi.com',
-          'x-rapidapi-key': RAPIDAPI_KEY
-        }
-      });
-      const reelsData = await reelsRes.json();
-      console.log('Reels2 response:', JSON.stringify(reelsData).slice(0,300));
-      const reels = reelsData?.reels || reelsData?.data || reelsData?.items || [];
-      if(Array.isArray(reels) && reels.length > 0){
-        avg_views = Math.round(reels.reduce((s,r)=>{
-          const n = r.node || r.media || r;
-          return s + (n.play_count||n.view_count||n.video_view_count||n.ig_play_count||0);
-        },0)/reels.length);
-      }
-    }
-  } catch(e) { console.log('Reels fetch failed:', e.message); }
-
-  return {
-    username: user.username || username,
-    full_name: user.full_name || username,
-    followers,
-    following,
-    posts: posts_count,
-    reels: user.total_clips_count || 0,
-    avg_likes,
-    avg_comments,
-    avg_views,
-    is_private: user.is_private || false,
-    is_verified: user.is_verified || false,
-    last_post: lastPost,
-  };
-}
-
 function addAcct(){
   const un=document.getElementById('new-un').value.replace('@','').trim().toLowerCase();
   const merr=document.getElementById('merr');
@@ -592,29 +458,14 @@ function addAcct(){
 
   fetchIGStats(un).then(stats=>{
     const acct={
-      id:'a_'+Date.now(),
-      username:stats.username||un,
-      full_name: stats.full_name||un,
-      status:'none',
-      followers: stats.followers||0,
-      views: stats.avg_views||0,
-      posts: stats.posts||0,
-      reels: stats.reels||0,
-      likes: stats.avg_likes||0,
-      comments: stats.avg_comments||0,
-      d24: 0,
-      lastPost: stats.last_post||null,
-      addedAt: new Date().toISOString(),
-      is_verified: stats.is_verified||false,
-      is_private: stats.is_private||false,
+      id:'a_'+Date.now(), username:stats.username||un, full_name:stats.full_name||un,
+      status:'none', followers:stats.followers||0, views:stats.avg_views||0,
+      posts:stats.posts||0, reels:stats.reels||0, likes:stats.avg_likes||0,
+      comments:stats.avg_comments||0, d24:0, lastPost:stats.last_post||null,
+      addedAt:new Date().toISOString(), is_verified:stats.is_verified||false, is_private:stats.is_private||false,
     };
-    accounts.unshift(acct);
-    save();
-    renderAll();
-    closeAdd();
-    toast('@'+un+' added!','ok');
+    accounts.unshift(acct); save(); renderAll(); closeAdd(); toast('@'+un+' added!','ok');
   }).catch(err=>{
-    const merr=document.getElementById('merr');
     merr.textContent='Could not fetch @'+un+': '+(err.message||'not found');
     merr.style.display='block';
   }).finally(()=>{
@@ -657,10 +508,7 @@ function badge(status){
   const [c,l]=m[status]||m.none;
   return `<span class="badge ${c}"><span class="bdot"></span>${l}</span>`;
 }
-function av(a){
-  const ini=(a.username||'').slice(0,2).toUpperCase();
-  return `<div class="av">${ini}</div>`;
-}
+function av(a){ return `<div class="av">${(a.username||'').slice(0,2).toUpperCase()}</div>`; }
 
 function getRows(){
   const q=(document.getElementById('q')?.value||'').toLowerCase();
@@ -689,7 +537,7 @@ function draw(){
   tb.innerHTML=rows.map(a=>`<tr>
     <td><input type="checkbox" style="cursor:pointer"></td>
     <td><div class="aw">${av(a)}<div>
-      <div class="ahandle"><i class="ti ti-brand-instagram" style="font-size:11px;color:var(--text3)"></i> @${a.username}</div>
+      <div class="ahandle"><i class="ti ti-brand-instagram" style="font-size:11px;color:var(--text3)"></i> @${a.username}${a.is_verified?'<i class="ti ti-circle-check-filled" style="color:var(--blue);font-size:11px;margin-left:3px"></i>':''}</div>
       ${a.full_name&&a.full_name!==a.username?`<div class="aname">${a.full_name}</div>`:''}
     </div></div></td>
     <td>
@@ -698,8 +546,7 @@ function draw(){
       </select>
       ${badge(a.status)}
     </td>
-    <td class="mu">—</td>
-    <td class="mu">—</td>
+    <td class="mu">—</td><td class="mu">—</td>
     <td class="num">${a.followers?fmt(a.followers):'<span class="mu">—</span>'}</td>
     <td>${fmtD(a.d24)}</td>
     <td class="num">${a.views?fmt(a.views):'<span class="mu">—</span>'}</td>
@@ -711,7 +558,7 @@ function draw(){
     <td style="font-size:11px">${timeAgo(a.lastPost)}</td>
     <td class="mu" style="font-size:11px">No media</td>
     <td><div class="ra">
-      <button class="rb" title="Remove" onclick="delAcct('${a.id}','${a.username}')"><i class="ti ti-trash del"></i></button>
+      <button class="rb del" title="Remove" onclick="delAcct('${a.id}','${a.username}')"><i class="ti ti-trash"></i></button>
     </div></td>
   </tr>`).join('');
 }
@@ -745,13 +592,6 @@ function setF(f){
 function srt(col){
   if(sc===col) sd=sd==='asc'?'desc':'asc';
   else{ sc=col; sd='desc'; }
-  document.querySelectorAll('th').forEach(th=>{th.classList.remove('asc','desc','sorted');});
-  const idx={username:1,status:2,followers:5,d24:6,views:7,posts:11,reels:12,likes:13,comments:14,lastPost:15};
-  const ths=document.querySelectorAll('th');
-  if(idx[col]!==undefined){
-    const th=ths[idx[col]];
-    if(th){ th.classList.add(sd,'sorted'); }
-  }
   draw();
 }
 
