@@ -242,21 +242,20 @@ async function fetchIGStats(username){
   const p=data?.data||data;
   if(!p||!p.username) throw new Error('User not found');
 
-  // Get posts from jsonData (full data fetched by worker)
+  // Get posts from jsonData - HasData returns latestIgtVideos array
   const jd = data?.jsonData;
-  const timeline = jd?.edge_owner_to_timeline_media?.edges || 
-                   p?.edge_owner_to_timeline_media?.edges || [];
   const latestVideos = jd?.latestIgtVideos || p?.latestIgtVideos || [];
-  const all_posts = timeline.length > 0 ? timeline : latestVideos;
+  const timeline = jd?.edge_owner_to_timeline_media?.edges || p?.edge_owner_to_timeline_media?.edges || [];
+  const all_posts = latestVideos.length > 0 ? latestVideos : timeline;
 
   let avg_likes=0,avg_comments=0,avg_views=0,lastPost=null;
   if(all_posts.length>0){
-    const items=all_posts.map(e=>e.node||e);
-    avg_likes=Math.round(items.reduce((s,i)=>s+(i.likesCount||i.edge_liked_by?.count||i.like_count||0),0)/items.length);
-    avg_comments=Math.round(items.reduce((s,i)=>s+(i.commentsCount||i.edge_media_to_comment?.count||i.comment_count||0),0)/items.length);
-    avg_views=Math.round(items.reduce((s,i)=>s+(i.videoViewCount||i.video_view_count||i.viewCount||i.play_count||0),0)/items.length);
-    const ts=items[0]?.timestamp||items[0]?.taken_at_timestamp||items[0]?.taken_at;
-    if(ts) lastPost=new Date(typeof ts==='number'?ts*1000:ts).toISOString();
+    const items = all_posts.map(e => e.node || e);
+    avg_likes = Math.round(items.reduce((s,i) => s + (i.likesCount || i.edge_liked_by?.count || 0), 0) / items.length);
+    avg_comments = Math.round(items.reduce((s,i) => s + (i.commentsCount || i.edge_media_to_comment?.count || 0), 0) / items.length);
+    avg_views = Math.round(items.reduce((s,i) => s + (i.videoViewCount || i.video_view_count || i.viewCount || i.play_count || 0), 0) / items.length);
+    const ts = items[0]?.timestamp || items[0]?.taken_at_timestamp;
+    if(ts) lastPost = new Date(typeof ts==='number' ? ts*1000 : ts).toISOString();
   }
 
   return{
