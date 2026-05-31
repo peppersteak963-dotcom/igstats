@@ -209,7 +209,7 @@ tr:hover .ra{opacity:1}
 </div>
 
 <div class="ov" id="add-modal" style="display:none" onclick="if(event.target===this)closeAdd()">
-  <div class="modal">
+  <div class="modal" style="max-width:420px">
     <div class="mhd"><span class="mtitle">Add Instagram account</span><button class="mclose" onclick="closeAdd()"><i class="ti ti-x"></i></button></div>
     <div class="form-group">
       <label class="form-label">Instagram username</label>
@@ -217,7 +217,19 @@ tr:hover .ra{opacity:1}
       <p class="mhint">Enter any public Instagram username</p>
     </div>
     <div class="merr" id="merr"></div>
-    <div class="mactions">
+    <div id="manual-section" style="display:none">
+      <div style="background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--amber);margin-bottom:12px"><i class="ti ti-info-circle"></i> Account not found automatically — enter stats manually below.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label class="form-label">Full name</label><input class="form-input" id="m-name" placeholder="e.g. Katie Myrvelle" style="padding:8px 10px"></div>
+        <div><label class="form-label">Followers</label><input class="form-input" id="m-followers" type="number" placeholder="e.g. 38" style="padding:8px 10px"></div>
+        <div><label class="form-label">Posts</label><input class="form-input" id="m-posts" type="number" placeholder="e.g. 6" style="padding:8px 10px"></div>
+        <div><label class="form-label">Reels</label><input class="form-input" id="m-reels" type="number" placeholder="e.g. 5" style="padding:8px 10px"></div>
+        <div><label class="form-label">Total Views</label><input class="form-input" id="m-views" type="number" placeholder="e.g. 5000" style="padding:8px 10px"></div>
+        <div><label class="form-label">Avg Likes</label><input class="form-input" id="m-likes" type="number" placeholder="e.g. 120" style="padding:8px 10px"></div>
+      </div>
+      <div><label class="form-label">Avg Comments</label><input class="form-input" id="m-comments" type="number" placeholder="e.g. 10" style="padding:8px 10px"></div>
+    </div>
+    <div class="mactions" style="margin-top:18px">
       <button class="btn-out" onclick="closeAdd()">Cancel</button>
       <button class="btn-fill" id="add-do" onclick="addAcct()"><i class="ti ti-plus" style="font-size:13px"></i> Add account</button>
     </div>
@@ -368,48 +380,60 @@ async function fetchIGStats(username) {
   const res = await fetch(WORKER_URL + '?username=' + encodeURIComponent(username));
   const data = await res.json();
   console.log('Response:', JSON.stringify(data).slice(0, 400));
-  if (!res.ok) throw new Error('API error ' + res.status);
+  if (!res.ok) throw new Error(data?.error || 'API error ' + res.status);
   const p = data?.data || data;
   if (!p || !p.username) throw new Error('User not found');
-  const latestVideos = p?.latestIgtVideos || data?.latestIgtVideos || [];
-  const timeline = p?.edge_owner_to_timeline_media?.edges || [];
-  const all_posts = latestVideos.length > 0 ? latestVideos : timeline;
-  let avg_likes = 0, avg_comments = 0, avg_views = 0, lastPost = null;
-  if (all_posts.length > 0) {
-    const items = all_posts.map(e => e.node || e);
-    avg_likes = Math.round(items.reduce((s, i) => s + (i.likesCount || i.edge_liked_by?.count || 0), 0) / items.length);
-    avg_comments = Math.round(items.reduce((s, i) => s + (i.commentsCount || i.edge_media_to_comment?.count || 0), 0) / items.length);
-    const ts = items[0]?.timestamp || items[0]?.taken_at_timestamp;
-    if (ts) lastPost = new Date(typeof ts === 'number' ? ts * 1000 : ts).toISOString();
-  }
-  const clips = data?.hikerClips || [];
-  if (Array.isArray(clips) && clips.length > 0) {
-    avg_views = clips.reduce((s, c) => s + (c.play_count || c.view_count || 0), 0);
-    if (!lastPost && clips[0]?.taken_at) {
-      const ts = clips[0].taken_at_ts || clips[0].taken_at;
-      lastPost = new Date(typeof ts === 'number' ? ts * 1000 : ts).toISOString();
-    }
-  }
   return {
     username: p.username || username,
     full_name: p.fullName || p.full_name || username,
-    followers: p.followersCount || p.followers || 0,
-    posts: p.postsCount || p.mediaCount || 0,
-    reels: p.igtvVideoCount || p.igtv_video_count || 0,
-    avg_likes, avg_comments, avg_views,
-    is_private: p.isPrivate || false,
-    is_verified: p.verified || p.isVerified || false,
-    last_post: lastPost
+    followers: p.followersCount || p.follower_count || 0,
+    posts: p.postsCount || p.media_count || 0,
+    reels: p.igtvVideoCount || 0,
+    avg_likes: data.avgLikes || 0,
+    avg_comments: data.avgComments || 0,
+    avg_views: data.totalViews || 0,
+    is_private: p.isPrivate || p.is_private || false,
+    is_verified: p.isVerified || p.is_verified || false,
+    last_post: data.lastPost || null
   };
 }
 
 // ── Add account ───────────────────────────────────────────────────
+let manualMode = false;
+
 async function addAcct() {
   const un = document.getElementById('new-un').value.replace('@', '').trim().toLowerCase();
   const merr = document.getElementById('merr');
   merr.style.display = 'none';
   if (!un) { merr.textContent = 'Enter a username'; merr.style.display = 'block'; return; }
   if (accounts.find(a => a.username === un)) { merr.textContent = 'Already tracked'; merr.style.display = 'block'; return; }
+
+  // Manual mode — save with user-entered stats
+  if (manualMode) {
+    const acct = {
+      id: 'a_' + Date.now(),
+      username: un,
+      full_name: document.getElementById('m-name').value.trim() || un,
+      status: 'none',
+      followers: parseInt(document.getElementById('m-followers').value) || 0,
+      views: parseInt(document.getElementById('m-views').value) || 0,
+      posts: parseInt(document.getElementById('m-posts').value) || 0,
+      reels: parseInt(document.getElementById('m-reels').value) || 0,
+      likes: parseInt(document.getElementById('m-likes').value) || 0,
+      comments: parseInt(document.getElementById('m-comments').value) || 0,
+      lastPost: null,
+      addedAt: new Date().toISOString(),
+      is_verified: false,
+      is_private: false
+    };
+    await save(acct);
+    accounts.unshift(acct);
+    renderAll();
+    closeAdd();
+    toast('@' + un + ' added manually!', 'ok');
+    return;
+  }
+
   const btn = document.getElementById('add-do');
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader-2 spin"></i> Fetching…';
@@ -437,11 +461,15 @@ async function addAcct() {
     closeAdd();
     toast('@' + un + ' added!', 'ok');
   } catch (err) {
-    merr.textContent = 'Could not fetch @' + un + ': ' + (err.message || 'error');
+    // Show manual entry section on failure
+    merr.textContent = 'Could not fetch @' + un + ' automatically. Fill in stats manually below.';
     merr.style.display = 'block';
+    document.getElementById('manual-section').style.display = 'block';
+    document.getElementById('m-name').focus();
+    manualMode = true;
+    btn.innerHTML = '<i class="ti ti-plus" style="font-size:13px"></i> Save manually';
   }
   btn.disabled = false;
-  btn.innerHTML = '<i class="ti ti-plus" style="font-size:13px"></i> Add account';
 }
 
 // ── Delete account ────────────────────────────────────────────────
@@ -522,7 +550,7 @@ function renderAll() { updateMeta(); draw(); }
 function setF(f) { fStatus = f; document.querySelectorAll('.pill[data-f]').forEach(p => p.classList.toggle('on', p.dataset.f === f)); draw(); }
 function srt(col) { if (sc === col) sd = sd === 'asc' ? 'desc' : 'asc'; else { sc = col; sd = 'desc'; } draw(); }
 function toggleAll(c) { document.querySelectorAll('#tbody input[type=checkbox]').forEach(x => x.checked = c); }
-function openAdd() { document.getElementById('add-modal').style.display = 'flex'; document.getElementById('new-un').value = ''; document.getElementById('merr').style.display = 'none'; const btn = document.getElementById('add-do'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-plus" style="font-size:13px"></i> Add account'; setTimeout(() => document.getElementById('new-un').focus(), 60); }
+function openAdd() { manualMode = false; document.getElementById('add-modal').style.display = 'flex'; document.getElementById('new-un').value = ''; document.getElementById('merr').style.display = 'none'; document.getElementById('manual-section').style.display = 'none'; ['m-name','m-followers','m-posts','m-reels','m-views','m-likes','m-comments'].forEach(id => document.getElementById(id).value = ''); const btn = document.getElementById('add-do'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-plus" style="font-size:13px"></i> Add account'; setTimeout(() => document.getElementById('new-un').focus(), 60); }
 function closeAdd() { document.getElementById('add-modal').style.display = 'none'; }
 function toast(msg, type = '') { const el = document.createElement('div'); el.className = 'toast' + (type ? ' ' + type : ''); el.textContent = msg; document.getElementById('toasts').appendChild(el); setTimeout(() => el.remove(), 3000); }
 </script>
