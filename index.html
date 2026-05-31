@@ -435,14 +435,14 @@ async function fetchIGStats(username) {
   // Get posts for avg stats - call user posts endpoint
   let avg_likes=0, avg_comments=0, avg_views=0, lastPost=null;
   try {
-    const postsRes = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/ig_get_user_posts.php', {
+    const postsRes = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/get_ig_user_posts.php', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
         'x-rapidapi-key': RAPIDAPI_KEY
       },
-      body: 'username_or_url=' + encodeURIComponent(username) + '&amount=12'
+      body: 'username_or_url=' + encodeURIComponent('https://www.instagram.com/' + username + '/') + '&amount=12'
     });
     const postsData = await postsRes.json();
     console.log('Posts response:', JSON.stringify(postsData).slice(0,300));
