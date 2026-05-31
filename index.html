@@ -456,6 +456,25 @@ async function fetchIGStats(username) {
     }
   } catch(e) { console.log('Posts fetch failed:', e.message); }
 
+  // Fetch reels for view counts
+  try {
+    const reelsRes = await fetch('https://instagram-scraper-stable-api.p.rapidapi.com/get_ig_user_reels.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-rapidapi-host': 'instagram-scraper-stable-api.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY
+      },
+      body: 'username_or_url=' + encodeURIComponent(username) + '&amount=12'
+    });
+    const reelsData = await reelsRes.json();
+    console.log('Reels response:', JSON.stringify(reelsData).slice(0,300));
+    const reels = reelsData?.reels || reelsData?.data?.items || reelsData?.items || [];
+    if(Array.isArray(reels) && reels.length > 0){
+      avg_views = Math.round(reels.reduce((s,r)=>s+(r.play_count||r.view_count||r.video_view_count||0),0)/reels.length);
+    }
+  } catch(e) { console.log('Reels fetch failed:', e.message); }
+
   return {
     username: user.username || username,
     full_name: user.full_name || username,
