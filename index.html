@@ -574,7 +574,7 @@ function draw() {
   tb.innerHTML = rows.map(a => `<tr>
     <td><input type="checkbox"></td>
     <td><div class="aw"><div class="av" style="${a.profile_pic ? 'padding:0;overflow:hidden;' : ''}">${a.profile_pic ? `<img src="${a.profile_pic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML='${(a.username||'').slice(0,2).toUpperCase()}'">` : (a.username || '').slice(0, 2).toUpperCase()}</div><div><div class="ahandle">@${a.username}${a.is_verified ? '<i class="ti ti-circle-check-filled" style="color:var(--blue);font-size:11px;margin-left:3px"></i>' : ''}</div>${a.full_name && a.full_name !== a.username ? `<div class="aname">${a.full_name}</div>` : ''}</div></div></td>
-    <td><select class="status-sel" onchange="chStatus('${a.id}',this.value)" style="margin-right:4px">${['none', 'good', 'watching', 'bad'].map(s => `<option value="${s}"${a.status === s ? ' selected' : ''}>${{ none: 'No status', good: 'Good', watching: 'Watching', bad: 'Bad' }[s]}</option>`).join('')}</select>${badge(a.status)}</td>
+    <td><select class="status-sel" onchange="chStatus('${a.id}',this.value)">${['none', 'good', 'watching', 'bad'].map(s => `<option value="${s}"${a.status === s ? ' selected' : ''}>${{ none: 'No status', good: 'Good', watching: 'Watching', bad: 'Bad' }[s]}</option>`).join('')}</select>${badge(a.status)}</td>
     <td class="mu">—</td><td class="mu">—</td>
     <td class="num">${a.followers ? fmt(a.followers) : '<span class="mu">—</span>'}</td>
     <td class="mu">—</td>
@@ -594,11 +594,9 @@ function updateMeta() {
   ['followers', 'views', 'posts', 'reels', 'likes', 'comments'].forEach((k, i) => { document.getElementById('m' + i).textContent = fmt(sum(k)); });
   document.getElementById('m6').textContent = accounts.length;
   document.getElementById('tb-badge').textContent = 'ALL ACCOUNTS ' + accounts.length;
-  document.getElementById('sb-all').textContent = accounts.length;
-  document.getElementById('sb-no').textContent = accounts.length;
   const c = { all: accounts.length, none: 0, good: 0, watching: 0, bad: 0 };
   accounts.forEach(a => { if (c[a.status] !== undefined) c[a.status]++; });
-  ['pa', 'pn', 'pg', 'pw2', 'pb', 'pav'].forEach((id, i) => { const k = ['all', 'none', 'good', 'watching', 'bad', 'all'][i]; document.getElementById(id).textContent = c[k]; });
+  ['pa', 'pn', 'pg', 'pw2', 'pb', 'pav'].forEach((id, i) => { const k = ['all', 'none', 'good', 'watching', 'bad', 'all'][i]; const el = document.getElementById(id); if(el) el.textContent = c[k]; });
 }
 
 function renderAll() { updateMeta(); draw(); }
